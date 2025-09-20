@@ -1,4 +1,5 @@
 import prisma from "@/configs/db";
+import { productSelect } from "@/configs/select";
 import { Request, Response } from "express";
 
 export const getProducts = async (req: Request, res: Response) => {
@@ -33,37 +34,46 @@ export const getProducts = async (req: Request, res: Response) => {
 
     console.log("Filters:", filters);
 
-    // ✅ Fetch paginated products
-    const products = await prisma.product.findMany({
+
+     const products = await prisma.product.findMany({
       where: filters,
       orderBy: { price: sort === "asc" ? "asc" : "desc" },
-      include: {
-        category: true,
-        images: true,
-        sizes:{
-          select:{
-            size:{
-              select:{
-                name:true
-              }
-            },
-            stock:true
-          }
-        },
-        tags: {
-          select: {
-            tag: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-        },
-      },
+      select:productSelect,
       skip,
       take: pageSize,
     });
+
+    // ✅ Fetch paginated products
+    // const products = await prisma.product.findMany({
+    //   where: filters,
+    //   orderBy: { price: sort === "asc" ? "asc" : "desc" },
+    //   include: {
+    //     category: true,
+    //     images: true,
+    //     sizes:{
+    //       select:{
+    //         size:{
+    //           select:{
+    //             name:true
+    //           }
+    //         },
+    //         stock:true
+    //       }
+    //     },
+    //     tags: {
+    //       select: {
+    //         tag: {
+    //           select: {
+    //             id: true,
+    //             name: true,
+    //           },
+    //         },
+    //       },
+    //     },
+    //   },
+    //   skip,
+    //   take: pageSize,
+    // });
 
     // // ✅ Flatten tags
     // const formattedProducts = products.map((p) => ({
