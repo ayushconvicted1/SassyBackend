@@ -1,0 +1,47 @@
+{
+  "name": "shringar-backend",
+  "version": "1.0.0",
+  "description": "Jewellery E-Commerce",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "nodemon --watch src --ext ts --exec \"ts-node --require tsconfig-paths/register src/index.ts\"",
+    "build": "tsc && tsc-alias",
+    "start": "node dist/index.js",
+    "prisma": "prisma",
+    "prisma:seed": "prisma db seed"
+  },
+  "prisma": {
+    "seed": "ts-node --require tsconfig-paths/register prisma/seed.ts"
+  },
+  "author": "Akash",
+  "license": "ISC",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.888.0",
+    "@prisma/client": "^6.16.1",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "crypto": "^1.0.1",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.1",
+    "multer": "^2.0.2",
+    "node-fetch": "^3.3.2",
+    "razorpay": "^2.9.6",
+    "tsconfig-paths": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/morgan": "^1.9.10",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^24.4.0",
+    "nodemon": "^3.1.10",
+    "prisma": "^6.16.1",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "tsc-alias": "^1.8.10",
+    "typescript": "^5.9.2"
+  }
+}
