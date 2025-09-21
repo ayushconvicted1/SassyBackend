@@ -147,5 +147,6 @@ model OrderItem {
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   productId Int
   quantity  Int     @db.UnsignedInt
+  size      String?
   price     Decimal @db.Decimal(10, 2)
 }

@@ -1,8 +1,12 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
+interface JwtPayload {
+  userId: number; // Adjust based on your JWT payload structure
+}
+
 export interface AuthRequest extends Request {
-  user?: any;
+  user?: JwtPayload; // Type the user property
 }
 
 export const authMiddleware = (
@@ -17,7 +21,7 @@ export const authMiddleware = (
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "secretkey");
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "secretkey") as JwtPayload;
     req.user = decoded;
     next();
   } catch (err) {

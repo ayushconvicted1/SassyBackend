@@ -1,5 +1,5 @@
 import prisma from "@/configs/db";
-import { productSelect } from "@/configs/select";
+import { formatProduct, productSelect } from "@/configs/select";
 import { Request, Response } from "express";
 
 export const getProducts = async (req: Request, res: Response) => {
@@ -21,8 +21,7 @@ export const getProducts = async (req: Request, res: Response) => {
     // ✅ Filters
     const filters: any = {};
     if (categoryId) filters.categoryId = Number(categoryId);
-    if (search)
-      filters.name = { contains: String(search) };
+    if (search) filters.name = { contains: String(search) };
 
     // ✅ Tag filter (only one tagId expected)
     if (tagId) {
@@ -34,11 +33,10 @@ export const getProducts = async (req: Request, res: Response) => {
 
     console.log("Filters:", filters);
 
-
-     const products = await prisma.product.findMany({
+    const products = await prisma.product.findMany({
       where: filters,
       orderBy: { price: sort === "asc" ? "asc" : "desc" },
-      select:productSelect,
+      select: productSelect,
       skip,
       take: pageSize,
     });
@@ -94,9 +92,57 @@ export const getProducts = async (req: Request, res: Response) => {
       },
     });
   } catch (err: any) {
-    console.log(err)
+    console.log(err);
     res.status(500).json({ error: err.message });
   }
 };
 
-module.exports = { getProducts };
+export const getProductById = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ error: "Product ID is required" });
+    }
+    const product = await prisma.product.findUnique({
+      where: { id: Number(id) },
+      include: {
+        category: true,
+        images: {
+          select: {
+            url: true,
+          },
+        },
+        sizes: {
+          select: {
+            size: {
+              select: {
+                name: true,
+              },
+            },
+            // stock: true,
+          },
+        },
+        tags: {
+          select: {
+            tag: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!product) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+    const formattedProduct = formatProduct(product);
+    console.log("Formatted Product:", formattedProduct);
+    res.json(formattedProduct);
+  } catch (err: any) {
+    console.log(err);
+    res.status(500).json({ error: err.message });
+  }
+};
+

@@ -4,22 +4,70 @@ import razorpay from "@/configs/razorpay";
 import crypto from "crypto";
 import fetch from "node-fetch";
 
+export const getOrders = async (req: Request, res: Response) => {
+  try {
+    let id = 1;
+    const userId = req?.user?.userId || 1;
+
+    // if(!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const orders = await prisma.order.findMany({
+      where: { id: userId },
+      select: {
+        id: true,
+        status: true,
+        createdAt: true,
+        waybillNumber: true,
+        zipCode: true,
+        addressLine1: true,
+        addressLine2: true,
+        city: true,
+        state: true,
+        country: true,
+        phoneNumber: true,
+        email: true,
+        items: {
+          select: {
+            price: true,
+            quantity: true,
+            product: {
+              select: {
+                name: true,
+                images: {
+                  select: { url: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    return res.json(orders);
+  } catch (err: any) {
+    console.log(err);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
 export const checkout = async (req: Request, res: Response) => {
   try {
-    const { userId, items } = req.body;
+    // retrieve userId from token
+    const { userDetails, items } = req.body;
+    const userId= userDetails.userId;
 
-    // retrieve address from user profile 
+    // retrieve address from user profile
 
-    const address={
-      email:"akash@example.com",
-      phoneNumber:"9898989898",
-      addressLine1:"Huda Market",
-      addressLine2:"Sector 14",
-      city:"Gurugram",
-      state:"Haryana",
-      country:"India",
-      zipCode:"122001"
-    }
+    const address = {
+      userId:userDetails.userId,
+      email: userDetails.email,
+      phoneNumber: userDetails.phoneNumber,
+      addressLine1: userDetails.addressLine1,
+      addressLine2: userDetails.addressLine2,
+      city: userDetails.city,
+      state: userDetails.state,
+      country: userDetails.country,
+      zipCode: userDetails.zipCode,
+    };
 
     // get user
     const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -43,6 +91,7 @@ export const checkout = async (req: Request, res: Response) => {
         productId: item.productId,
         quantity: item.quantity,
         price,
+        size: item.size,
       });
     }
 
@@ -60,15 +109,15 @@ export const checkout = async (req: Request, res: Response) => {
     const razorpayOrder = await razorpay.orders.create(options);
 
     // Save order in DB (status: pending)
+    //userId is already there in address
     const order = await prisma.order.create({
       data: {
-        userId,
         total,
         razorpayOrderId: razorpayOrder.id,
         status: "pending",
         items: { create: orderItems },
         ...address,
-        waybillNumber:""
+        waybillNumber: "",
       },
 
     });
@@ -132,6 +181,7 @@ export const verifyPayment = async (req: Request, res: Response) => {
     }
   } catch (err: any) {
     console.error(err);
+
     res.status(500).json({ error: err.message });
   }
 };
