@@ -118,7 +118,59 @@ export const getProfile = async (req: Request, res: Response) => {
 };
 
 export const updateProfile = async (req: Request, res: Response) => {
-  // this api updates user address details
+  try {
+    const userId = req.user?.id;
 
-}
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+
+    // Extract only allowed fields
+    const {
+      name,
+      zipCode,
+      addressLine1,
+      addressLine2,
+      city,
+      state,
+      country,
+      phoneNumber,
+    } = req.body;
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(name && { name }),
+        ...(zipCode && { zipCode }),
+        ...(addressLine1 && { addressLine1 }),
+        ...(addressLine2 && { addressLine2 }),
+        ...(city && { city }),
+        ...(state && { state }),
+        ...(country && { country }),
+        ...(phoneNumber && { phoneNumber }),
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        zipCode: true,
+        addressLine1: true,
+        addressLine2: true,
+        city: true,
+        state: true,
+        country: true,
+        phoneNumber: true,
+        updatedAt: true,
+      },
+    });
+
+    return res.status(200).json({
+      message: "Profile updated successfully",
+      user: updatedUser,
+    });
+  } catch (err: any) {
+    console.error("Error updating profile:", err);
+    return res.status(500).json({ error: "Something went wrong" });
+  }
+};
 
