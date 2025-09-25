@@ -1,8 +1,9 @@
+require("dotenv").config()
 import express from "express";
 const cors = require("cors");
 const morgan = require("morgan");
 
-// const userRoutes = require("@/routes/user.routes.ts");
+const userRoutes = require("@/routes/user.routes");
 const productRoutes = require("./routes/product.routes");
 const mediaRoutes = require("./routes/media.routes");
 // const cartRoutes = require("@/routes/cart.routes"); 
@@ -15,7 +16,7 @@ app.use(cors());
 app.use(express.json());
 app.use(morgan("dev"));
 
-// app.use("/api/users", userRoutes);
+app.use("/api/users", userRoutes);
 app.use("/api/products", productRoutes);
 // app.use("/api/cart", cartRoutes);
 app.use("/api/orders", orderRoutes);

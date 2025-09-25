@@ -55,7 +55,6 @@ async function main() {
   const user = await prisma.user.create({
     data: {
       email: 'john.doe@example.com',
-      password: 'hashed_password', // In production, hash the password
       name: 'John Doe',
       role: 'USER',
       avatar: { connect: { id: media[2].id } },
