@@ -66,7 +66,7 @@ export const otpVerification = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "OTP doesn't match" });
     }
 
-    if (newUser) {
+    if (newUser==false) {
       if (!name) {
         return res.status(400).json({ message: "Name is required for new users" });
       }
