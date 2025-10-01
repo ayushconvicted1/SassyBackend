@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -14,17 +14,17 @@ enum Role {
 
 model User {
   id           Int      @id @default(autoincrement())
-  email        String   @unique @db.VarChar(255)
-  name         String   @db.VarChar(100)
+  email        String   @unique
+  name         String
   avatar       Media?   @relation("UserAvatar")
   role         Role     @default(USER)
-  zipCode      String?  @db.VarChar(10)
-  addressLine1 String?  @db.VarChar(255)
-  addressLine2 String?  @db.VarChar(255)
-  city         String?  @db.VarChar(100)
-  state        String?  @db.VarChar(100)
-  country      String?  @db.VarChar(100)
-  phoneNumber  String?  @db.VarChar(20)
+  zipCode      String?
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String?
+  country      String?
+  phoneNumber  String?
   cart         Cart?
   orders       Order[]
   createdAt    DateTime @default(now())
@@ -35,12 +35,13 @@ model User {
 
 model Product {
   id          Int           @id @default(autoincrement())
-  name        String        @db.VarChar(255)
-  description String?       @db.Text
-  price       Decimal       @db.Decimal(10, 2)
-  stock       Int           @db.UnsignedInt
+  name        String
+  description String?
+  price       Decimal
+  stock       Int
   images      Media[]       @relation("ProductImages")
   isAvailable Boolean       @default(true)
+  hasSizing   Boolean       @default(false) // Whether this product supports sizing
   category    Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   categoryId  Int?
   cartItems   CartItem[]
@@ -55,9 +56,9 @@ model Product {
 
 model Media {
   id        Int      @id @default(autoincrement())
-  url       String   @db.VarChar(255)
-  mimeType  String   @db.VarChar(50)
-  type      String   @db.VarChar(50)
+  url       String
+  mimeType  String
+  type      String
   createdAt DateTime @default(now())
   productId Int?
   product   Product? @relation("ProductImages", fields: [productId], references: [id], onDelete: Cascade)
@@ -67,7 +68,7 @@ model Media {
 
 model Size {
   id       Int           @id @default(autoincrement())
-  name     String        @unique @db.VarChar(50)
+  name     String        @unique
   products ProductSize[]
 }
 
@@ -77,12 +78,12 @@ model ProductSize {
   productId Int
   size      Size    @relation(fields: [sizeId], references: [id], onDelete: Cascade)
   sizeId    Int
-  stock     Int     @default(0) @db.UnsignedInt
+  stock     Int     @default(0)
 }
 
 model Tag {
   id       Int          @id @default(autoincrement())
-  name     String       @unique @db.VarChar(50)
+  name     String       @unique
   products ProductTag[]
 }
 
@@ -97,7 +98,7 @@ model ProductTag {
 
 model Category {
   id       Int       @id @default(autoincrement())
-  name     String    @unique @db.VarChar(100)
+  name     String    @unique
   products Product[]
 }
 
@@ -114,7 +115,7 @@ model CartItem {
   cartId    Int
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   productId Int
-  quantity  Int     @default(1) @db.UnsignedInt
+  quantity  Int     @default(1)
 }
 
 model Order {
@@ -122,19 +123,27 @@ model Order {
   user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId          Int
   items           OrderItem[]
-  total           Decimal     @db.Decimal(10, 2)
-  status          String      @default("pending") @db.VarChar(50)
+  total           Decimal
+  status          String      @default("pending")
+  paymentMethod   String      @default("razorpay") // "razorpay" or "cod"
   razorpayOrderId String?
   paymentId       String?
   waybillNumber   String?
-  zipCode         String?     @db.VarChar(10)
-  addressLine1    String?     @db.VarChar(255)
-  addressLine2    String?     @db.VarChar(255)
-  city            String?     @db.VarChar(100)
-  state           String?     @db.VarChar(100)
-  country         String?     @db.VarChar(100)
-  phoneNumber     String?     @db.VarChar(20)
-  email           String?     @db.VarChar(255)
+  zipCode         String?
+  addressLine1    String?
+  addressLine2    String?
+  city            String?
+  state           String?
+  country         String?
+  phoneNumber     String?
+  email           String?
+  // Pricing breakdown
+  subtotal        Decimal?    // Product subtotal
+  shipping        Decimal?    // Shipping cost
+  tax             Decimal?    // Tax amount
+  offerDiscount   Decimal?    @default(0) // Offer/coupon discount
+  prepaidDiscount Decimal?    @default(0) // Prepaid payment discount
+  appliedDiscount Decimal?    @default(0) // Total discount (for backward compatibility)
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 }
@@ -145,7 +154,36 @@ model OrderItem {
   orderId   Int
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   productId Int
-  quantity  Int     @db.UnsignedInt
+  quantity  Int
   size      String?
-  price     Decimal @db.Decimal(10, 2)
+  price     Decimal
+}
+
+model Offer {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  name        String
+  description String?
+  discountType DiscountType
+  discountValue Decimal // Percentage (0-100) or fixed amount
+  minOrderValue Decimal? // Minimum order value to apply offer
+  maxDiscount Decimal? // Maximum discount amount (for percentage discounts)
+  applicableTags String[] // Array of tag names that products must have
+  applicableCategories String[] // Array of category names that products must have
+  isActive    Boolean  @default(true)
+  startDate   DateTime?
+  endDate     DateTime?
+  usageLimit  Int? // Maximum number of times this offer can be used
+  usageCount  Int  @default(0) // Current usage count
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([code])
+  @@index([isActive])
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  BOGO // Buy One Get One Free
 }

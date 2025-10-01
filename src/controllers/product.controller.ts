@@ -11,31 +11,78 @@ export const getProducts = async (req: Request, res: Response) => {
       page = "1",
       limit = "10",
       tagId,
+      minPrice,
+      maxPrice,
     } = req.query;
 
-    // ✅ Pagination
-    const pageNumber = Number(page) || 1;
-    const pageSize = Number(limit) || 10;
+    // ✅ Pagination - Ensure valid numbers
+    const pageNumber = Math.max(1, Number(page) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(limit) || 10)); // Limit max page size to 100
     const skip = (pageNumber - 1) * pageSize;
 
     // ✅ Filters
     const filters: any = {};
-    if (categoryId) filters.categoryId = Number(categoryId);
-    if (search) filters.name = { contains: String(search) };
-
-    // ✅ Tag filter (only one tagId expected)
+    if (categoryId) {
+      const catId = Number(categoryId);
+      if (!isNaN(catId)) filters.categoryId = catId;
+    }
+    if (search) {
+      filters.name = { contains: String(search), mode: "insensitive" };
+    }
     if (tagId) {
-      filters.tags = { some: { tagId: Number(tagId) } };
+      const tId = Number(tagId);
+      if (!isNaN(tId)) {
+        filters.tags = { some: { tagId: tId } };
+      }
+    }
+
+    // ✅ Price range filters
+    if (minPrice || maxPrice) {
+      filters.price = {};
+      if (minPrice) {
+        const min = Number(minPrice);
+        if (!isNaN(min)) filters.price.gte = min;
+      }
+      if (maxPrice) {
+        const max = Number(maxPrice);
+        if (!isNaN(max)) filters.price.lte = max;
+      }
     }
 
     // ✅ Fetch total count for pagination meta
     const totalCount = await prisma.product.count({ where: filters });
 
     console.log("Filters:", filters);
+    console.log("Pagination:", { pageNumber, pageSize, skip, totalCount });
+    console.log("Query parameters:", {
+      categoryId,
+      sort,
+      search,
+      page,
+      limit,
+      tagId,
+      minPrice,
+      maxPrice,
+    });
+
+    // ✅ Determine sort order
+    let orderBy: any = {};
+    if (sort === "asc") {
+      orderBy = { price: "asc" };
+    } else if (sort === "desc") {
+      orderBy = { price: "desc" };
+    } else if (sort === "name-asc") {
+      orderBy = { name: "asc" };
+    } else if (sort === "name-desc") {
+      orderBy = { name: "desc" };
+    } else {
+      // Default to newest first (by createdAt)
+      orderBy = { createdAt: "desc" };
+    }
 
     const products = await prisma.product.findMany({
       where: filters,
-      orderBy: { price: sort === "asc" ? "asc" : "desc" },
+      orderBy,
       select: productSelect,
       skip,
       take: pageSize,
@@ -82,13 +129,17 @@ export const getProducts = async (req: Request, res: Response) => {
     //   })),
     // }));
 
+    const totalPages = Math.ceil(totalCount / pageSize);
+
     res.json({
       data: products,
       pagination: {
         totalItems: totalCount,
-        totalPages: Math.ceil(totalCount / pageSize),
+        totalPages,
         currentPage: pageNumber,
         pageSize,
+        hasNextPage: pageNumber < totalPages,
+        hasPrevPage: pageNumber > 1,
       },
     });
   } catch (err: any) {
@@ -106,39 +157,12 @@ export const getProductById = async (req: Request, res: Response) => {
     }
     const product = await prisma.product.findUnique({
       where: { id: Number(id) },
-      include: {
-        category: true,
-        images: {
-          select: {
-            url: true,
-          },
-        },
-        sizes: {
-          select: {
-            size: {
-              select: {
-                name: true,
-              },
-            },
-            // stock: true,
-          },
-        },
-        tags: {
-          select: {
-            tag: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
-      },
+      select: productSelect,
     });
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
     }
     const formattedProduct = formatProduct(product);
-    console.log("Formatted Product:", formattedProduct);
     res.json(formattedProduct);
   } catch (err: any) {
     console.log(err);
@@ -146,3 +170,32 @@ export const getProductById = async (req: Request, res: Response) => {
   }
 };
 
+export const getCategories = async (req: Request, res: Response) => {
+  try {
+    const categories = await prisma.category.findMany({
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+    res.json(categories);
+  } catch (err: any) {
+    console.log(err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const getTags = async (req: Request, res: Response) => {
+  try {
+    const tags = await prisma.tag.findMany({
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+    res.json(tags);
+  } catch (err: any) {
+    console.log(err);
+    res.status(500).json({ error: err.message });
+  }
+};

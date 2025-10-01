@@ -9,7 +9,7 @@ const { Router } = require("express");
 
 const router = Router();
 
-router.get("/" ,getOrders);
+router.get("/", authMiddleware, getOrders);
 router.post("/checkout", checkout);
 router.post("/verify-payment", verifyPayment);
 

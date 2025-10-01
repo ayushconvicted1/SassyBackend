@@ -1,16 +1,39 @@
-const {Router}=require("express")
-import { uploadImage } from "@/controllers/media.controller";
+const { Router } = require("express");
+import {
+  uploadImage,
+  uploadMultipleImages,
+  deleteImage,
+  getProductImages,
+} from "@/controllers/media.controller";
 import multer from "multer";
+import { adminMiddleware } from "@/middlewares/admin.middleware";
 
 const router = Router();
+
+// Health check endpoint (no auth required)
+router.get("/health", (req: any, res: any) => {
+  res.json({ status: "OK", message: "Media service is running" });
+});
+
+// Apply admin middleware to all other media routes
+router.use(adminMiddleware);
 
 // Configure Multer storage (in memory, since we upload directly to S3)
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// POST /api/media/upload
+// POST /api/media/upload - Single image upload
 // Fields in body: type (string), userId (optional), productId (optional)
 router.post("/upload", upload.single("file"), uploadImage);
 
-module.exports= router;
+// POST /api/media/upload-multiple - Multiple images upload (max 4)
+// Fields in body: type (string), productId (optional)
+router.post("/upload-multiple", upload.array("files", 4), uploadMultipleImages);
 
+// DELETE /api/media/:id - Delete image
+router.delete("/:id", deleteImage);
+
+// GET /api/media/product/:productId - Get all images for a product
+router.get("/product/:productId", getProductImages);
+
+module.exports = router;

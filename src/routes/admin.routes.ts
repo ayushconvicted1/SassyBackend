@@ -1,38 +1,82 @@
-import { deleteProduct, getAllOrders, updateOrderDetails, upsertProduct } from "@/controllers/admin.controller";
+import {
+  getDashboardStats,
+  deleteProduct,
+  getAllOrders,
+  updateOrderDetails,
+  refreshOrderStatus,
+  getStatusServiceInfo,
+  upsertProduct,
+  getAllProducts,
+  getAllUsers,
+  updateUserRole,
+  getAllSizes,
+  upsertSize,
+  deleteSize,
+  getAllCategories,
+  upsertCategory,
+  deleteCategory,
+  getAllTags,
+  upsertTag,
+  deleteTag,
+} from "@/controllers/admin.controller";
+import {
+  getAllOffers,
+  createOffer,
+  updateOffer,
+  deleteOffer,
+  getOfferById,
+  getTagsAndCategories,
+} from "@/controllers/offer.controller";
+import { adminMiddleware } from "@/middlewares/admin.middleware";
 import express from "express";
-const multer = require("multer");
-
-// const { getProducts, addProduct, updateProduct, deleteProduct } = require("../controllers/productController");
-// const { getOrders } = require("../controllers/orderController");
-// const { createCoupon, deleteCoupon, deactivateCoupon } = require("../controllers/couponController");
 
 const router = express.Router();
-// const upload = multer({ dest: "uploads/" });
 
-// // Product routes
-// router.get("/products", getProducts);
-// router.post("/products", upload.array("images"), addProduct);
-// router.put("/products/:id", updateProduct);
-// router.delete("/products/:id", deleteProduct);
+// Apply admin middleware to all routes
+router.use(adminMiddleware);
 
-// // Orders
-// router.get("/orders", getOrders);
+// Dashboard
+router.get("/dashboard/stats", getDashboardStats);
 
-// // Coupons
-// router.post("/coupons", createCoupon);
-// router.delete("/coupons/:id", deleteCoupon);
-// router.put("/coupons/:id/deactivate", deactivateCoupon);
-
-
-//Orders
+// Orders
 router.get("/orders", getAllOrders);
-router.put("/orders/:id",updateOrderDetails )
-
+router.put("/orders/:id", updateOrderDetails);
+router.post("/orders/:id/refresh-status", refreshOrderStatus);
+router.get("/status-service-info", getStatusServiceInfo);
 
 // Products
-router.post("/product",upsertProduct);
-// router.delete("/product/:id", deleteProduct);
+router.get("/products", getAllProducts);
+router.post("/product", upsertProduct);
+router.delete("/product/:id", deleteProduct);
 
+// Users
+router.get("/users", getAllUsers);
+router.put("/users/:id/role", updateUserRole);
 
+// Sizes
+router.get("/sizes", getAllSizes);
+router.post("/size", upsertSize);
+router.put("/size/:id", upsertSize);
+router.delete("/size/:id", deleteSize);
+
+// Categories
+router.get("/categories", getAllCategories);
+router.post("/category", upsertCategory);
+router.put("/category/:id", upsertCategory);
+router.delete("/category/:id", deleteCategory);
+
+// Tags
+router.get("/tags", getAllTags);
+router.post("/tag", upsertTag);
+router.put("/tag/:id", upsertTag);
+router.delete("/tag/:id", deleteTag);
+
+// Offers
+router.get("/offers", getAllOffers);
+router.post("/offer", createOffer);
+router.put("/offer/:id", updateOffer);
+router.delete("/offer/:id", deleteOffer);
+router.get("/offer/:id", getOfferById);
+router.get("/tags-categories", getTagsAndCategories);
 
 module.exports = router;

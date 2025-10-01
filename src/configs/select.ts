@@ -5,42 +5,75 @@ export const productSelect = {
   price: true,
   stock: true,
   createdAt: true,
+  updatedAt: true,
   isAvailable: true,
-  images:{
-    select:{
-        url:true
-    }
-  }
+  hasSizing: true,
+  categoryId: true,
+  category: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
+  images: {
+    select: {
+      url: true,
+    },
+  },
+  sizes: {
+    select: {
+      size: {
+        select: {
+          name: true,
+        },
+      },
+      stock: true,
+    },
+  },
+  tags: {
+    select: {
+      tag: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  },
 };
 
 type ProductResponse = {
-  id: number
-  name: string
-  description?: string
-  price: string
-  stock: number
-  isAvailable: boolean
-  categoryId?: number
-  createdAt: string
-  updatedAt: string
-  category?: { id: number; name: string }
-  images: { url: string }[]
-  sizes: any[]
-  tags: { tag: { name: string } }[]
-}
+  id: number;
+  name: string;
+  description?: string;
+  price: string;
+  stock: number;
+  isAvailable: boolean;
+  hasSizing: boolean;
+  categoryId?: number;
+  createdAt: string;
+  updatedAt: string;
+  category?: { id: number; name: string };
+  images: { url: string }[];
+  sizes: any[];
+  tags: { tag: { name: string } }[];
+  relatedProducts?: any[];
+};
 
 export function formatProduct(product: any) {
   return {
     id: product.id,
     name: product.name,
     description: product.description,
-    price: Number(product.price), 
+    price: Number(product.price),
     stock: product.stock,
     isAvailable: product.isAvailable,
+    hasSizing: product.hasSizing ?? false,
     category: product.category?.name ?? null,
-    images: product.images?.map((img:any) => img.url) ?? [],
-    tags: product.tags?.map((t:any) => t.tag.name) ?? [],
+    categoryId: product.categoryId,
+    images: product.images?.map((img: any) => img.url) ?? [],
+    tags: product.tags?.map((t: any) => t.tag.name) ?? [],
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
-  }
+  };
 }

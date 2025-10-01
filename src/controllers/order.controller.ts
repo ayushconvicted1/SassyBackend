@@ -6,17 +6,47 @@ import fetch from "node-fetch";
 
 export const getOrders = async (req: Request, res: Response) => {
   try {
-    let id = 1;
-    const userId = req?.user?.userId || 1;
+    const userId = req?.user?.userId;
+    console.log(
+      "getOrders - userId from token:",
+      userId,
+      "type:",
+      typeof userId
+    );
+    console.log("getOrders - req.user:", req.user);
 
-    // if(!userId) return res.status(401).json({ error: "Unauthorized" });
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    // Ensure userId is a number
+    const numericUserId =
+      typeof userId === "string" ? parseInt(userId, 10) : userId;
+    console.log(
+      "getOrders - numericUserId:",
+      numericUserId,
+      "type:",
+      typeof numericUserId
+    );
+
+    console.log(
+      "getOrders - Querying with userId:",
+      userId,
+      "type:",
+      typeof userId
+    );
 
     const orders = await prisma.order.findMany({
-      where: { id: userId },
+      where: {
+        userId: numericUserId,
+        status: {
+          in: ["paid", "pending", "confirmed", "shipped", "delivered"], // Show all relevant order statuses except cancelled
+        },
+      },
       select: {
         id: true,
         status: true,
         createdAt: true,
+        total: true,
+        paymentMethod: true, // Added payment method
         waybillNumber: true,
         zipCode: true,
         addressLine1: true,
@@ -26,8 +56,16 @@ export const getOrders = async (req: Request, res: Response) => {
         country: true,
         phoneNumber: true,
         email: true,
+        // Pricing breakdown
+        subtotal: true,
+        shipping: true,
+        tax: true,
+        offerDiscount: true,
+        prepaidDiscount: true,
+        appliedDiscount: true,
         items: {
           select: {
+            id: true,
             price: true,
             quantity: true,
             product: {
@@ -42,6 +80,47 @@ export const getOrders = async (req: Request, res: Response) => {
         },
       },
     });
+
+    console.log("getOrders - Found orders:", orders.length);
+    console.log("getOrders - Orders data:", JSON.stringify(orders, null, 2));
+    console.log("getOrders - Filtering for statuses:", [
+      "paid",
+      "pending",
+      "confirmed",
+      "shipped",
+      "delivered",
+    ]);
+
+    // Debug: Check all orders in database
+    const allOrders = await prisma.order.findMany({
+      select: { id: true, userId: true, status: true },
+    });
+    console.log("getOrders - All orders in DB:", allOrders);
+
+    // Debug: Check orders for specific user (all statuses)
+    const userOrders = await prisma.order.findMany({
+      where: { userId: numericUserId },
+      select: { id: true, userId: true, status: true },
+    });
+    console.log(
+      "getOrders - All orders for user",
+      numericUserId,
+      ":",
+      userOrders
+    );
+
+    // Debug: Check only paid orders for user
+    const paidOrders = await prisma.order.findMany({
+      where: { userId: numericUserId, status: "paid" },
+      select: { id: true, userId: true, status: true },
+    });
+    console.log(
+      "getOrders - Paid orders for user",
+      numericUserId,
+      ":",
+      paidOrders
+    );
+
     return res.json(orders);
   } catch (err: any) {
     console.log(err);
@@ -52,13 +131,29 @@ export const getOrders = async (req: Request, res: Response) => {
 export const checkout = async (req: Request, res: Response) => {
   try {
     // retrieve userId from token
-    const { userDetails, items } = req.body;
-    const userId= userDetails.userId;
+    const {
+      userDetails,
+      items,
+      offer,
+      totals,
+      paymentMethod = "razorpay",
+    } = req.body;
+    const userId = parseInt(userDetails.userId, 10);
+
+    // Validate userId
+    if (isNaN(userId) || userId <= 0) {
+      return res.status(400).json({ error: "Invalid user ID" });
+    }
+
+    // Validate payment method
+    if (!["razorpay", "cod"].includes(paymentMethod)) {
+      return res.status(400).json({ error: "Invalid payment method" });
+    }
 
     // retrieve address from user profile
 
     const address = {
-      userId:userDetails.userId,
+      userId: userId,
       email: userDetails.email,
       phoneNumber: userDetails.phoneNumber,
       addressLine1: userDetails.addressLine1,
@@ -99,36 +194,119 @@ export const checkout = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "No valid products in order" });
     }
 
-    // Create Razorpay order
-    const options = {
-      amount: total * 100, // INR -> paise
-      currency: "INR",
-      receipt: `receipt_order_${Date.now()}`,
-    };
+    // Calculate server-side totals for validation
+    const shipping = total > 100 ? 0 : 10;
+    const tax = total * 0.08; // 8% tax
+    const offerDiscount = offer?.discountAmount || 0;
+    
+    // Validate prepaid discount: 10% for razorpay, 0% for COD
+    const expectedPrepaidDiscountRate = paymentMethod === "razorpay" ? 0.10 : 0;
+    const expectedPrepaidDiscount = (total + shipping + tax) * expectedPrepaidDiscountRate;
+    
+    // Validate frontend calculations
+    const frontendPrepaidDiscount = totals?.prepaidDiscount || 0;
+    if (Math.abs(frontendPrepaidDiscount - expectedPrepaidDiscount) > 0.01) {
+      return res.status(400).json({ 
+        error: "Invalid prepaid discount calculation",
+        expected: expectedPrepaidDiscount,
+        received: frontendPrepaidDiscount
+      });
+    }
+    
+    const expectedTotal = total + shipping + tax - offerDiscount - expectedPrepaidDiscount;
+    const finalTotal = totals?.total ? Number(totals.total) : expectedTotal;
+    
+    // Validate total calculation
+    if (Math.abs(finalTotal - expectedTotal) > 0.01) {
+      return res.status(400).json({ 
+        error: "Invalid total calculation",
+        expected: expectedTotal,
+        received: finalTotal
+      });
+    }
 
-    const razorpayOrder = await razorpay.orders.create(options);
+    console.log("Checkout - Original subtotal:", total);
+    console.log("Checkout - Shipping:", shipping);
+    console.log("Checkout - Tax:", tax);
+    console.log("Checkout - Offer discount:", offerDiscount);
+    console.log("Checkout - Prepaid discount:", expectedPrepaidDiscount);
+    console.log("Checkout - Final total:", finalTotal);
+    console.log("Checkout - Payment method:", paymentMethod);
 
-    // Save order in DB (status: pending)
-    //userId is already there in address
-    const order = await prisma.order.create({
-      data: {
-        total,
-        razorpayOrderId: razorpayOrder.id,
-        status: "pending",
-        items: { create: orderItems },
-        ...address,
-        waybillNumber: "",
-      },
+    if (paymentMethod === "cod") {
+      // For COD orders, create order directly without Razorpay
+      const order = await prisma.order.create({
+        data: {
+          total: finalTotal,
+          subtotal: total,
+          shipping: shipping,
+          tax: tax,
+          offerDiscount: offerDiscount,
+          prepaidDiscount: expectedPrepaidDiscount,
+          appliedDiscount: offerDiscount + expectedPrepaidDiscount,
+          paymentMethod: "cod",
+          status: "pending", // COD orders start as pending
+          items: { create: orderItems },
+          ...address,
+          waybillNumber: "",
+        },
+      });
 
-    });
+      // Reduce stock for COD orders immediately
+      for (const item of orderItems) {
+        await prisma.product.update({
+          where: { id: item.productId },
+          data: { stock: { decrement: item.quantity } },
+        });
+      }
 
-    res.json({
-      id: razorpayOrder.id,
-      currency: razorpayOrder.currency,
-      amount: razorpayOrder.amount,
-      orderId: order.id,
-      key: process.env.RAZORPAY_KEY_ID,
-    });
+      res.json({
+        success: true,
+        orderId: order.id,
+        paymentMethod: "cod",
+        message: "COD order created successfully",
+      });
+    } else {
+      // For Razorpay orders, create Razorpay order
+      const amountInPaise = Math.round(finalTotal * 100);
+      console.log("Checkout - Amount in paise:", amountInPaise);
+
+      const options = {
+        amount: amountInPaise, // INR -> paise (must be integer)
+        currency: "INR",
+        receipt: `receipt_order_${Date.now()}`,
+      };
+
+      const razorpayOrder = await razorpay.orders.create(options);
+
+      // Save order in DB (status: pending)
+      const order = await prisma.order.create({
+        data: {
+          total: finalTotal,
+          subtotal: total,
+          shipping: shipping,
+          tax: tax,
+          offerDiscount: offerDiscount,
+          prepaidDiscount: expectedPrepaidDiscount,
+          appliedDiscount: offerDiscount + expectedPrepaidDiscount,
+          paymentMethod: "razorpay",
+          razorpayOrderId: razorpayOrder.id,
+          status: "pending",
+          items: { create: orderItems },
+          ...address,
+          waybillNumber: "",
+        },
+      });
+
+      res.json({
+        id: razorpayOrder.id,
+        currency: razorpayOrder.currency,
+        amount: razorpayOrder.amount,
+        orderId: order.id,
+        key: process.env.RAZORPAY_KEY_ID,
+        paymentMethod: "razorpay",
+      });
+    }
   } catch (err: any) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -144,16 +322,32 @@ export const verifyPayment = async (req: Request, res: Response) => {
       orderId, // DB orderId
     } = req.body;
 
+    // Convert orderId to number
+    const numericOrderId = parseInt(orderId, 10);
+    if (isNaN(numericOrderId) || numericOrderId <= 0) {
+      return res.status(400).json({ error: "Invalid order ID" });
+    }
+
     const sign = razorpay_order_id + "|" + razorpay_payment_id;
     const expectedSign = crypto
       .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET as string)
       .update(sign.toString())
       .digest("hex");
 
+    // Debug logging
+    console.log("Signature verification debug:");
+    console.log("Received signature:", razorpay_signature);
+    console.log("Expected signature:", expectedSign);
+    console.log("Sign string:", sign);
+    console.log(
+      "RAZORPAY_KEY_SECRET exists:",
+      !!process.env.RAZORPAY_KEY_SECRET
+    );
+
     if (razorpay_signature === expectedSign) {
       // Fetch order items
       const orderItems = await prisma.orderItem.findMany({
-        where: { orderId: Number(orderId) },
+        where: { orderId: numericOrderId },
       });
 
       for (const item of orderItems) {
@@ -165,7 +359,7 @@ export const verifyPayment = async (req: Request, res: Response) => {
 
       // ✅ Update order as paid
       const order = await prisma.order.update({
-        where: { id: Number(orderId) },
+        where: { id: numericOrderId },
         data: {
           status: "paid",
           paymentId: razorpay_payment_id,
@@ -175,6 +369,7 @@ export const verifyPayment = async (req: Request, res: Response) => {
 
       // await createShipment();
 
+      console.log("Payment verification successful, returning response");
       res.json({ success: true, message: "Payment verified", order });
     } else {
       res.status(400).json({ success: false, error: "Invalid signature" });
@@ -256,4 +451,3 @@ const API_KEY = "2f2997f3c071874c01512e3203f782b3da830341";
 //     console.error("❌ Network/API Error:", error);
 //   }
 // };
-

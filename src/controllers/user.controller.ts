@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import prisma from "@/configs/db";
+import { AuthRequest } from "@/middlewares/auth.middleware";
 import { generateToken } from "@/utils/jwt";
 import { createNewOtp } from "@/utils/auth";
 import { verifyOtp } from "@/services/verifyOtp";
@@ -22,7 +23,6 @@ export const register = async (req: Request, res: Response) => {
 
     const hash = createNewOtp(email);
     return res.status(200).json({ message: "OTP sent", hash, newUser: true });
-
   } catch (err: any) {
     console.error("Register Error:", err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -45,7 +45,6 @@ export const login = async (req: Request, res: Response) => {
 
     const hash = createNewOtp(email);
     return res.status(200).json({ message: "OTP sent", hash, newUser: false });
-
   } catch (err: any) {
     console.error("Login Error:", err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -66,9 +65,11 @@ export const otpVerification = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "OTP doesn't match" });
     }
 
-    if (newUser==false) {
+    if (newUser == true) {
       if (!name) {
-        return res.status(400).json({ message: "Name is required for new users" });
+        return res
+          .status(400)
+          .json({ message: "Name is required for new users" });
       }
 
       const createdUser = await prisma.user.create({
@@ -79,47 +80,86 @@ export const otpVerification = async (req: Request, res: Response) => {
         },
       });
 
-      const token = tokenGenerator(email);
+      const token = tokenGenerator(email, createdUser.id);
       return res.status(201).json({
         message: "User created successfully",
         user: createdUser,
         token,
       });
-
     } else {
-      const token = tokenGenerator(email);
+      // For existing users, fetch user data and return it
+      const existingUser = await prisma.user.findUnique({
+        where: { email },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          zipCode: true,
+          addressLine1: true,
+          addressLine2: true,
+          city: true,
+          state: true,
+          country: true,
+          phoneNumber: true,
+          updatedAt: true,
+        },
+      });
+
+      if (!existingUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const token = tokenGenerator(email, existingUser.id);
       return res.status(200).json({
         message: "Login successful",
+        user: existingUser,
         token,
       });
     }
-
   } catch (err: any) {
     console.error("OTP Verification Error:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
 
-
-
-export const getProfile = async (req: Request, res: Response) => {
+export const getProfile = async (req: AuthRequest, res: Response) => {
   try {
     // get id from auth middleware
-    const userId = req.body.id;
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, name: true, createdAt: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        zipCode: true,
+        addressLine1: true,
+        addressLine2: true,
+        city: true,
+        state: true,
+        country: true,
+        phoneNumber: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
     if (!user) return res.status(404).json({ message: "User not found" });
-    res.json(user);
+    res.json({ user });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 };
 
-export const updateProfile = async (req: Request, res: Response) => {
+export const updateProfile = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.user?.userId;
 
     if (!userId) {
       return res.status(400).json({ error: "User ID is required" });
@@ -137,17 +177,59 @@ export const updateProfile = async (req: Request, res: Response) => {
       phoneNumber,
     } = req.body;
 
+    // Validate required fields
+    const validationErrors: string[] = [];
+
+    if (!name || name.trim().length === 0) {
+      validationErrors.push("Name is required");
+    }
+
+    if (!addressLine1 || addressLine1.trim().length === 0) {
+      validationErrors.push("Address Line 1 is required");
+    }
+
+    if (!city || city.trim().length === 0) {
+      validationErrors.push("City is required");
+    }
+
+    if (!state || state.trim().length === 0) {
+      validationErrors.push("State is required");
+    }
+
+    if (!zipCode || zipCode.trim().length === 0) {
+      validationErrors.push("ZIP code is required");
+    } else if (!/^\d{6}$/.test(zipCode)) {
+      validationErrors.push("ZIP code must be exactly 6 digits");
+    }
+
+    if (!country || country.trim().length === 0) {
+      validationErrors.push("Country is required");
+    }
+
+    if (!phoneNumber || phoneNumber.trim().length === 0) {
+      validationErrors.push("Phone number is required");
+    } else if (!/^\d{10}$/.test(phoneNumber)) {
+      validationErrors.push("Phone number must be exactly 10 digits");
+    }
+
+    if (validationErrors.length > 0) {
+      return res.status(400).json({
+        error: "Validation failed",
+        details: validationErrors,
+      });
+    }
+
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
-        ...(name && { name }),
-        ...(zipCode && { zipCode }),
-        ...(addressLine1 && { addressLine1 }),
-        ...(addressLine2 && { addressLine2 }),
-        ...(city && { city }),
-        ...(state && { state }),
-        ...(country && { country }),
-        ...(phoneNumber && { phoneNumber }),
+        name: name.trim(),
+        zipCode: zipCode.trim(),
+        addressLine1: addressLine1.trim(),
+        addressLine2: addressLine2?.trim() || null,
+        city: city.trim(),
+        state: state.trim(),
+        country: country.trim(),
+        phoneNumber: phoneNumber.trim(),
       },
       select: {
         id: true,
@@ -174,3 +256,56 @@ export const updateProfile = async (req: Request, res: Response) => {
   }
 };
 
+export const checkAddressComplete = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        addressLine1: true,
+        city: true,
+        state: true,
+        zipCode: true,
+        country: true,
+        phoneNumber: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Check if all required address fields are present
+    const hasCompleteAddress = !!(
+      user.addressLine1 &&
+      user.city &&
+      user.state &&
+      user.zipCode &&
+      user.country &&
+      user.phoneNumber
+    );
+
+    return res.status(200).json({
+      hasCompleteAddress,
+      address: hasCompleteAddress
+        ? {
+            addressLine1: user.addressLine1,
+            city: user.city,
+            state: user.state,
+            zipCode: user.zipCode,
+            country: user.country,
+            phoneNumber: user.phoneNumber,
+          }
+        : null,
+    });
+  } catch (err: any) {
+    console.error("Error checking address completeness:", err);
+    return res.status(500).json({ error: "Something went wrong" });
+  }
+};
