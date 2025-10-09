@@ -73,6 +73,7 @@ export function formatProduct(product: any) {
     categoryId: product.categoryId,
     images: product.images?.map((img: any) => img.url) ?? [],
     tags: product.tags?.map((t: any) => t.tag.name) ?? [],
+    sizes: product.sizes ?? [], // Include sizes data
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
   };

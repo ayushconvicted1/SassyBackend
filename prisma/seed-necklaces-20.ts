@@ -447,6 +447,7 @@ async function main() {
       return prisma.product.create({
         data: {
           name: necklace.name,
+          sku: `NECK-${String(index + 1).padStart(3, '0')}`, // Generate SKU like NECK-001, NECK-002, etc.
           description: necklace.description,
           price: necklace.price,
           stock: necklace.stock,

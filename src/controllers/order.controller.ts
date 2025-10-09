@@ -66,8 +66,10 @@ export const getOrders = async (req: Request, res: Response) => {
         items: {
           select: {
             id: true,
+            productId: true, // Add productId to the response
             price: true,
             quantity: true,
+            size: true, // Add size field
             product: {
               select: {
                 name: true,
@@ -121,7 +123,42 @@ export const getOrders = async (req: Request, res: Response) => {
       paidOrders
     );
 
-    return res.json(orders);
+    // Format orders to match frontend Order type
+    const formattedOrders = orders.map((order) => ({
+      orderId: order.id.toString(),
+      orderDate: order.createdAt.toISOString(),
+      status:
+        order.status === "delivered"
+          ? "Delivered"
+          : order.status === "shipped"
+            ? "Shipped"
+            : order.status === "paid" || order.status === "confirmed"
+              ? "Processing"
+              : order.status === "cancelled"
+                ? "Cancelled"
+                : "Processing",
+      total: Number(order.total),
+      paymentMethod: order.paymentMethod,
+      waybillNumber: order.waybillNumber,
+      items: order.items.map((item) => ({
+        id: item.id.toString(),
+        productId: item.productId, // Include productId
+        name: item.product.name,
+        price: Number(item.price),
+        quantity: item.quantity,
+        image: item.product.images[0]?.url || "/placeholder-image.jpg",
+      })),
+      pricingBreakdown: {
+        subtotal: Number(order.subtotal || order.total),
+        tax: Number(order.tax || 0),
+        shipping: Number(order.shipping || 0),
+        offerDiscount: Number(order.offerDiscount || 0),
+        prepaidDiscount: Number(order.prepaidDiscount || 0),
+        totalDiscount: Number(order.appliedDiscount || 0),
+      },
+    }));
+
+    return res.json(formattedOrders);
   } catch (err: any) {
     console.log(err);
     return res.status(500).json({ error: err.message });
@@ -198,30 +235,32 @@ export const checkout = async (req: Request, res: Response) => {
     const shipping = total > 100 ? 0 : 10;
     const tax = total * 0.08; // 8% tax
     const offerDiscount = offer?.discountAmount || 0;
-    
+
     // Validate prepaid discount: 10% for razorpay, 0% for COD
-    const expectedPrepaidDiscountRate = paymentMethod === "razorpay" ? 0.10 : 0;
-    const expectedPrepaidDiscount = (total + shipping + tax) * expectedPrepaidDiscountRate;
-    
+    const expectedPrepaidDiscountRate = paymentMethod === "razorpay" ? 0.1 : 0;
+    const expectedPrepaidDiscount =
+      (total + shipping + tax) * expectedPrepaidDiscountRate;
+
     // Validate frontend calculations
     const frontendPrepaidDiscount = totals?.prepaidDiscount || 0;
     if (Math.abs(frontendPrepaidDiscount - expectedPrepaidDiscount) > 0.01) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: "Invalid prepaid discount calculation",
         expected: expectedPrepaidDiscount,
-        received: frontendPrepaidDiscount
+        received: frontendPrepaidDiscount,
       });
     }
-    
-    const expectedTotal = total + shipping + tax - offerDiscount - expectedPrepaidDiscount;
+
+    const expectedTotal =
+      total + shipping + tax - offerDiscount - expectedPrepaidDiscount;
     const finalTotal = totals?.total ? Number(totals.total) : expectedTotal;
-    
+
     // Validate total calculation
     if (Math.abs(finalTotal - expectedTotal) > 0.01) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: "Invalid total calculation",
         expected: expectedTotal,
-        received: finalTotal
+        received: finalTotal,
       });
     }
 

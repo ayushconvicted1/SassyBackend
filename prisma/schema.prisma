@@ -27,6 +27,7 @@ model User {
   phoneNumber  String?
   cart         Cart?
   orders       Order[]
+  reviews      Review[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -35,6 +36,7 @@ model User {
 
 model Product {
   id          Int           @id @default(autoincrement())
+  sku         String        @unique @db.VarChar(10) // SKU format: SS-NK-001 (up to 10 characters)
   name        String
   description String?
   price       Decimal
@@ -46,12 +48,14 @@ model Product {
   categoryId  Int?
   cartItems   CartItem[]
   orderItems  OrderItem[]
+  reviews     Review[]
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   sizes       ProductSize[]
   tags        ProductTag[]
 
   @@index([categoryId])
+  @@index([sku])
 }
 
 model Media {
@@ -123,6 +127,7 @@ model Order {
   user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId          Int
   items           OrderItem[]
+  reviews         Review[]
   total           Decimal
   status          String      @default("pending")
   paymentMethod   String      @default("razorpay") // "razorpay" or "cod"
@@ -186,4 +191,24 @@ enum DiscountType {
   PERCENTAGE
   FIXED_AMOUNT
   BOGO // Buy One Get One Free
+}
+
+model Review {
+  id        Int      @id @default(autoincrement())
+  rating    Int      // 1-5 stars
+  comment   String?  // Optional review text
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId Int
+  order     Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId   Int?     // Optional: link to specific order
+  isVerified Boolean @default(false) // Whether this review is verified (from actual purchase)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, productId]) // One review per user per product
+  @@index([productId])
+  @@index([userId])
+  @@index([rating])
 }

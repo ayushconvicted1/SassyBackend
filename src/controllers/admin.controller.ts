@@ -43,6 +43,7 @@ export const upsertProduct = async (req: Request, res: Response) => {
   try {
     const {
       id,
+      sku,
       name,
       description,
       price,
@@ -55,8 +56,36 @@ export const upsertProduct = async (req: Request, res: Response) => {
     } = req.body;
 
     // Validate required fields
-    if (!name || !price || !stock || !categoryId) {
-      return res.status(400).json({ error: "Missing required fields" });
+    if (!name || !price || !stock || !categoryId || !sku) {
+      return res.status(400).json({ error: "Missing required fields (including SKU)" });
+    }
+
+    // Validate SKU format - flexible to accommodate existing and new formats
+    if (sku.length < 3 || sku.length > 10) {
+      return res.status(400).json({
+        error: "SKU must be between 3-10 characters"
+      });
+    }
+
+    // Check if it contains only valid characters (letters, numbers, hyphens)
+    const validSkuRegex = /^[A-Z0-9-]+$/;
+    if (!validSkuRegex.test(sku.toUpperCase())) {
+      return res.status(400).json({
+        error: "SKU can only contain letters, numbers, and hyphens"
+      });
+    }
+
+    // Check for duplicate SKU (for both create and update operations)
+    const existingSkuProduct = await prisma.product.findFirst({
+      where: {
+        sku: sku.toUpperCase(),
+        ...(id && { id: { not: Number(id) } }) // Exclude current product if updating
+      },
+    });
+    if (existingSkuProduct) {
+      return res
+        .status(400)
+        .json({ error: "Product with this SKU already exists" });
     }
 
     // If no id is provided (create operation), check for duplicate product name
@@ -74,6 +103,7 @@ export const upsertProduct = async (req: Request, res: Response) => {
     const product = await prisma.product.upsert({
       where: { id: id ? Number(id) : 0 },
       update: {
+        sku: sku.toUpperCase(),
         name,
         description,
         price: Number(price),
@@ -82,37 +112,38 @@ export const upsertProduct = async (req: Request, res: Response) => {
         hasSizing: Boolean(hasSizing),
         images: imageIds
           ? {
-              set: [],
-              connect: (Array.isArray(imageIds) ? imageIds : [imageIds]).map(
-                (imgId: number) => ({
-                  id: Number(imgId),
-                })
-              ),
-            }
+            set: [],
+            connect: (Array.isArray(imageIds) ? imageIds : [imageIds]).map(
+              (imgId: number) => ({
+                id: Number(imgId),
+              })
+            ),
+          }
           : undefined,
         sizes: sizes
           ? {
-              deleteMany: {},
-              create: (Array.isArray(sizes) ? sizes : [sizes]).map(
-                (s: any) => ({
-                  size: { connect: { id: Number(s.sizeId) } },
-                  stock: Number(s.stock) || 0,
-                })
-              ),
-            }
+            deleteMany: {},
+            create: (Array.isArray(sizes) ? sizes : [sizes]).map(
+              (s: any) => ({
+                size: { connect: { id: Number(s.sizeId) } },
+                stock: Number(s.stock) || 0,
+              })
+            ),
+          }
           : undefined,
         tags: tags
           ? {
-              deleteMany: {},
-              create: (Array.isArray(tags) ? tags : [tags]).map(
-                (tagId: number) => ({
-                  tag: { connect: { id: Number(tagId) } },
-                })
-              ),
-            }
+            deleteMany: {},
+            create: (Array.isArray(tags) ? tags : [tags]).map(
+              (tagId: number) => ({
+                tag: { connect: { id: Number(tagId) } },
+              })
+            ),
+          }
           : undefined,
       },
       create: {
+        sku: sku.toUpperCase(),
         name,
         description,
         price: Number(price),
@@ -121,31 +152,31 @@ export const upsertProduct = async (req: Request, res: Response) => {
         hasSizing: Boolean(hasSizing),
         images: imageIds
           ? {
-              connect: (Array.isArray(imageIds) ? imageIds : [imageIds]).map(
-                (imgId: number) => ({
-                  id: Number(imgId),
-                })
-              ),
-            }
+            connect: (Array.isArray(imageIds) ? imageIds : [imageIds]).map(
+              (imgId: number) => ({
+                id: Number(imgId),
+              })
+            ),
+          }
           : undefined,
         sizes: sizes
           ? {
-              create: (Array.isArray(sizes) ? sizes : [sizes]).map(
-                (s: any) => ({
-                  size: { connect: { id: Number(s.sizeId) } },
-                  stock: Number(s.stock) || 0,
-                })
-              ),
-            }
+            create: (Array.isArray(sizes) ? sizes : [sizes]).map(
+              (s: any) => ({
+                size: { connect: { id: Number(s.sizeId) } },
+                stock: Number(s.stock) || 0,
+              })
+            ),
+          }
           : undefined,
         tags: tags
           ? {
-              create: (Array.isArray(tags) ? tags : [tags]).map(
-                (tagId: number) => ({
-                  tag: { connect: { id: Number(tagId) } },
-                })
-              ),
-            }
+            create: (Array.isArray(tags) ? tags : [tags]).map(
+              (tagId: number) => ({
+                tag: { connect: { id: Number(tagId) } },
+              })
+            ),
+          }
           : undefined,
       },
       include: {
@@ -192,13 +223,14 @@ export const getAllOrders = async (req: Request, res: Response) => {
       filters.status = String(status);
     }
 
-    // Search filter (by user name, email, or order ID)
+    // Search filter (by user name, email, order ID, or product SKU)
     if (search) {
       const searchTerm = String(search);
       filters.OR = [
         { id: { equals: isNaN(Number(searchTerm)) ? -1 : Number(searchTerm) } },
         { user: { name: { contains: searchTerm, mode: "insensitive" } } },
         { user: { email: { contains: searchTerm, mode: "insensitive" } } },
+        { items: { some: { product: { sku: { contains: searchTerm, mode: "insensitive" } } } } },
       ];
     }
 
@@ -407,7 +439,45 @@ export const getAllProducts = async (req: Request, res: Response) => {
 
     const filters: any = {};
     if (search) {
-      filters.name = { contains: String(search), mode: "insensitive" };
+      const searchTerm = String(search);
+
+      // Frontend to backend tag name mapping
+      const frontendToBackendTags: Record<string, string> = {
+        "Power Play": "Gold",
+        "Weekend Vibes": "Diamond",
+        "Glow Up": "Wedding",
+        "Date Night": "Silver",
+        "Dazzle Hour": "Pearl",
+        "Fearless Spark": "Sapphire",
+        "Casual Glam": "Ruby",
+        "Boss Gloss": "Emerald",
+      };
+
+      // Create search conditions for both frontend and backend tag names
+      const tagSearchConditions = [];
+
+      // Search by backend tag names (direct)
+      tagSearchConditions.push({ tags: { some: { tag: { name: { contains: searchTerm, mode: "insensitive" } } } } });
+
+      // Search by frontend display names (mapped to backend names)
+      Object.entries(frontendToBackendTags).forEach(([frontendName, backendName]) => {
+        if (frontendName.toLowerCase().includes(searchTerm.toLowerCase())) {
+          tagSearchConditions.push({ tags: { some: { tag: { name: { equals: backendName, mode: "insensitive" } } } } });
+        }
+      });
+
+      filters.OR = [
+        // Search in product name
+        { name: { contains: searchTerm, mode: "insensitive" } },
+        // Search in product SKU
+        { sku: { contains: searchTerm, mode: "insensitive" } },
+        // Search in product description
+        { description: { contains: searchTerm, mode: "insensitive" } },
+        // Search in category name
+        { category: { name: { contains: searchTerm, mode: "insensitive" } } },
+        // Search in tag names (both backend and frontend names)
+        ...tagSearchConditions,
+      ];
     }
     if (categoryId) {
       const catId = Number(categoryId);

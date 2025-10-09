@@ -78,7 +78,7 @@ export const createOffer = async (req: Request, res: Response) => {
   }
 };
 
-// Get all offers
+// Get all offers with enhanced display information
 export const getAllOffers = async (req: Request, res: Response) => {
   try {
     const { page = 1, limit = 10, active } = req.query;
@@ -99,8 +99,63 @@ export const getAllOffers = async (req: Request, res: Response) => {
       prisma.offer.count({ where }),
     ]);
 
+    // Tag mapping for pageData context
+    const tagNameMapping: Record<string, string> = {
+      Gold: "Power Play",
+      Diamond: "Weekend Vibes",
+      Wedding: "Glow Up",
+      Silver: "Date Night",
+      Pearl: "Dazzle Hour",
+      Sapphire: "Fearless Spark",
+      Ruby: "Casual Glam",
+      Emerald: "Boss Gloss",
+    };
+
+    // Enhance offers with display information
+    const enhancedOffers = offers.map(offer => {
+      // Create display name with pageData context
+      let displayName = offer.name;
+      const tagContexts: string[] = [];
+
+      offer.applicableTags.forEach((tagName: string) => {
+        if (tagNameMapping[tagName]) {
+          tagContexts.push(`${tagName} (${tagNameMapping[tagName]})`);
+        } else {
+          tagContexts.push(tagName);
+        }
+      });
+
+      if (tagContexts.length > 0) {
+        displayName = `${offer.name} - ${tagContexts.join(', ')}`;
+      }
+
+      // Create "Active for" text
+      const tagCount = offer.applicableTags.length;
+      const categoryCount = offer.applicableCategories.length;
+      let activeForText = '';
+
+      if (tagCount > 0 && categoryCount > 0) {
+        activeForText = `${tagCount} tags, ${categoryCount} categories`;
+      } else if (tagCount > 0) {
+        activeForText = `${tagCount} tag${tagCount > 1 ? 's' : ''}`;
+      } else if (categoryCount > 0) {
+        activeForText = `${categoryCount} categor${categoryCount > 1 ? 'ies' : 'y'}`;
+      } else {
+        activeForText = 'All products';
+      }
+
+      return {
+        ...offer,
+        displayName,
+        activeForText,
+        tagCount,
+        categoryCount,
+        pageDataContext: tagContexts.length > 0 ? tagContexts[0] : undefined,
+      };
+    });
+
     res.json({
-      offers,
+      offers: enhancedOffers,
       pagination: {
         page: Number(page),
         limit: Number(limit),

@@ -9,7 +9,9 @@ const mediaRoutes = require("./routes/media.routes");
 const cartRoutes = require("@/routes/cart.routes");
 const orderRoutes = require("./routes/order.routes");
 const adminRoutes = require("@/routes/admin.routes");
+const analyticsRoutes = require("@/routes/analytics.routes");
 const offerRoutes = require("./routes/offer.routes");
+const reviewRoutes = require("./routes/review.routes");
 
 const app = express();
 
@@ -23,8 +25,10 @@ app.use("/api/cart", cartRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/media", mediaRoutes);
 app.use("/api/offers", offerRoutes);
+app.use("/api/reviews", reviewRoutes);
 
 app.use("/api/admin", adminRoutes);
+app.use("/api/admin/analytics", analyticsRoutes);
 
 app.get("/", (req, res) => {
   res.send("Welcome to the Sassy Shringar Backend API!");
