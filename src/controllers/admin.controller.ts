@@ -47,6 +47,7 @@ export const upsertProduct = async (req: Request, res: Response) => {
       name,
       description,
       price,
+      crossedPrice,
       stock,
       categoryId,
       imageIds,
@@ -57,13 +58,15 @@ export const upsertProduct = async (req: Request, res: Response) => {
 
     // Validate required fields
     if (!name || !price || !stock || !categoryId || !sku) {
-      return res.status(400).json({ error: "Missing required fields (including SKU)" });
+      return res
+        .status(400)
+        .json({ error: "Missing required fields (including SKU)" });
     }
 
     // Validate SKU format - flexible to accommodate existing and new formats
     if (sku.length < 3 || sku.length > 10) {
       return res.status(400).json({
-        error: "SKU must be between 3-10 characters"
+        error: "SKU must be between 3-10 characters",
       });
     }
 
@@ -71,7 +74,7 @@ export const upsertProduct = async (req: Request, res: Response) => {
     const validSkuRegex = /^[A-Z0-9-]+$/;
     if (!validSkuRegex.test(sku.toUpperCase())) {
       return res.status(400).json({
-        error: "SKU can only contain letters, numbers, and hyphens"
+        error: "SKU can only contain letters, numbers, and hyphens",
       });
     }
 
@@ -79,7 +82,7 @@ export const upsertProduct = async (req: Request, res: Response) => {
     const existingSkuProduct = await prisma.product.findFirst({
       where: {
         sku: sku.toUpperCase(),
-        ...(id && { id: { not: Number(id) } }) // Exclude current product if updating
+        ...(id && { id: { not: Number(id) } }), // Exclude current product if updating
       },
     });
     if (existingSkuProduct) {
@@ -107,39 +110,40 @@ export const upsertProduct = async (req: Request, res: Response) => {
         name,
         description,
         price: Number(price),
+        crossedPrice: crossedPrice ? Number(crossedPrice) : null,
         stock: Number(stock),
         categoryId: Number(categoryId),
         hasSizing: Boolean(hasSizing),
         images: imageIds
           ? {
-            set: [],
-            connect: (Array.isArray(imageIds) ? imageIds : [imageIds]).map(
-              (imgId: number) => ({
-                id: Number(imgId),
-              })
-            ),
-          }
+              set: [],
+              connect: (Array.isArray(imageIds) ? imageIds : [imageIds]).map(
+                (imgId: number) => ({
+                  id: Number(imgId),
+                })
+              ),
+            }
           : undefined,
         sizes: sizes
           ? {
-            deleteMany: {},
-            create: (Array.isArray(sizes) ? sizes : [sizes]).map(
-              (s: any) => ({
-                size: { connect: { id: Number(s.sizeId) } },
-                stock: Number(s.stock) || 0,
-              })
-            ),
-          }
+              deleteMany: {},
+              create: (Array.isArray(sizes) ? sizes : [sizes]).map(
+                (s: any) => ({
+                  size: { connect: { id: Number(s.sizeId) } },
+                  stock: Number(s.stock) || 0,
+                })
+              ),
+            }
           : undefined,
         tags: tags
           ? {
-            deleteMany: {},
-            create: (Array.isArray(tags) ? tags : [tags]).map(
-              (tagId: number) => ({
-                tag: { connect: { id: Number(tagId) } },
-              })
-            ),
-          }
+              deleteMany: {},
+              create: (Array.isArray(tags) ? tags : [tags]).map(
+                (tagId: number) => ({
+                  tag: { connect: { id: Number(tagId) } },
+                })
+              ),
+            }
           : undefined,
       },
       create: {
@@ -147,36 +151,37 @@ export const upsertProduct = async (req: Request, res: Response) => {
         name,
         description,
         price: Number(price),
+        crossedPrice: crossedPrice ? Number(crossedPrice) : null,
         stock: Number(stock),
         categoryId: Number(categoryId),
         hasSizing: Boolean(hasSizing),
         images: imageIds
           ? {
-            connect: (Array.isArray(imageIds) ? imageIds : [imageIds]).map(
-              (imgId: number) => ({
-                id: Number(imgId),
-              })
-            ),
-          }
+              connect: (Array.isArray(imageIds) ? imageIds : [imageIds]).map(
+                (imgId: number) => ({
+                  id: Number(imgId),
+                })
+              ),
+            }
           : undefined,
         sizes: sizes
           ? {
-            create: (Array.isArray(sizes) ? sizes : [sizes]).map(
-              (s: any) => ({
-                size: { connect: { id: Number(s.sizeId) } },
-                stock: Number(s.stock) || 0,
-              })
-            ),
-          }
+              create: (Array.isArray(sizes) ? sizes : [sizes]).map(
+                (s: any) => ({
+                  size: { connect: { id: Number(s.sizeId) } },
+                  stock: Number(s.stock) || 0,
+                })
+              ),
+            }
           : undefined,
         tags: tags
           ? {
-            create: (Array.isArray(tags) ? tags : [tags]).map(
-              (tagId: number) => ({
-                tag: { connect: { id: Number(tagId) } },
-              })
-            ),
-          }
+              create: (Array.isArray(tags) ? tags : [tags]).map(
+                (tagId: number) => ({
+                  tag: { connect: { id: Number(tagId) } },
+                })
+              ),
+            }
           : undefined,
       },
       include: {
@@ -230,7 +235,13 @@ export const getAllOrders = async (req: Request, res: Response) => {
         { id: { equals: isNaN(Number(searchTerm)) ? -1 : Number(searchTerm) } },
         { user: { name: { contains: searchTerm, mode: "insensitive" } } },
         { user: { email: { contains: searchTerm, mode: "insensitive" } } },
-        { items: { some: { product: { sku: { contains: searchTerm, mode: "insensitive" } } } } },
+        {
+          items: {
+            some: {
+              product: { sku: { contains: searchTerm, mode: "insensitive" } },
+            },
+          },
+        },
       ];
     }
 
@@ -457,14 +468,28 @@ export const getAllProducts = async (req: Request, res: Response) => {
       const tagSearchConditions = [];
 
       // Search by backend tag names (direct)
-      tagSearchConditions.push({ tags: { some: { tag: { name: { contains: searchTerm, mode: "insensitive" } } } } });
+      tagSearchConditions.push({
+        tags: {
+          some: {
+            tag: { name: { contains: searchTerm, mode: "insensitive" } },
+          },
+        },
+      });
 
       // Search by frontend display names (mapped to backend names)
-      Object.entries(frontendToBackendTags).forEach(([frontendName, backendName]) => {
-        if (frontendName.toLowerCase().includes(searchTerm.toLowerCase())) {
-          tagSearchConditions.push({ tags: { some: { tag: { name: { equals: backendName, mode: "insensitive" } } } } });
+      Object.entries(frontendToBackendTags).forEach(
+        ([frontendName, backendName]) => {
+          if (frontendName.toLowerCase().includes(searchTerm.toLowerCase())) {
+            tagSearchConditions.push({
+              tags: {
+                some: {
+                  tag: { name: { equals: backendName, mode: "insensitive" } },
+                },
+              },
+            });
+          }
         }
-      });
+      );
 
       filters.OR = [
         // Search in product name

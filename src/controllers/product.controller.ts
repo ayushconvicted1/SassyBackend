@@ -45,14 +45,28 @@ export const getProducts = async (req: Request, res: Response) => {
       const tagSearchConditions = [];
 
       // Search by backend tag names (direct)
-      tagSearchConditions.push({ tags: { some: { tag: { name: { contains: searchTerm, mode: "insensitive" } } } } });
+      tagSearchConditions.push({
+        tags: {
+          some: {
+            tag: { name: { contains: searchTerm, mode: "insensitive" } },
+          },
+        },
+      });
 
       // Search by frontend display names (mapped to backend names)
-      Object.entries(frontendToBackendTags).forEach(([frontendName, backendName]) => {
-        if (frontendName.toLowerCase().includes(searchTerm.toLowerCase())) {
-          tagSearchConditions.push({ tags: { some: { tag: { name: { equals: backendName, mode: "insensitive" } } } } });
+      Object.entries(frontendToBackendTags).forEach(
+        ([frontendName, backendName]) => {
+          if (frontendName.toLowerCase().includes(searchTerm.toLowerCase())) {
+            tagSearchConditions.push({
+              tags: {
+                some: {
+                  tag: { name: { equals: backendName, mode: "insensitive" } },
+                },
+              },
+            });
+          }
         }
-      });
+      );
 
       filters.OR = [
         // Search in product name
@@ -298,7 +312,7 @@ export const getTopPicksProducts = async (req: Request, res: Response) => {
       const averageRating =
         reviews.length > 0
           ? reviews.reduce((sum, review) => sum + review.rating, 0) /
-          reviews.length
+            reviews.length
           : 4.5; // Default rating
 
       return {
@@ -307,6 +321,9 @@ export const getTopPicksProducts = async (req: Request, res: Response) => {
         name: product.name,
         description: product.description,
         price: Number(product.price),
+        crossedPrice: product.crossedPrice
+          ? Number(product.crossedPrice)
+          : null,
         stock: product.stock,
         isAvailable: product.isAvailable,
         hasSizing: product.hasSizing,
@@ -373,7 +390,7 @@ export const getProductById = async (req: Request, res: Response) => {
     });
 
     const totalReviews = await prisma.review.count({
-      where: { productId: Number(id) }
+      where: { productId: Number(id) },
     });
 
     const ratingDistribution = {

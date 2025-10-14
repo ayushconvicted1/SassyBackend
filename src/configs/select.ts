@@ -3,6 +3,7 @@ export const productSelect = {
   name: true,
   description: true,
   price: true,
+  crossedPrice: true,
   stock: true,
   createdAt: true,
   updatedAt: true,
@@ -47,6 +48,7 @@ type ProductResponse = {
   name: string;
   description?: string;
   price: string;
+  crossedPrice?: string;
   stock: number;
   isAvailable: boolean;
   hasSizing: boolean;
@@ -66,6 +68,7 @@ export function formatProduct(product: any) {
     name: product.name,
     description: product.description,
     price: Number(product.price),
+    crossedPrice: product.crossedPrice ? Number(product.crossedPrice) : null,
     stock: product.stock,
     isAvailable: product.isAvailable,
     hasSizing: product.hasSizing ?? false,

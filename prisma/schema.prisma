@@ -25,6 +25,7 @@ model User {
   state        String?
   country      String?
   phoneNumber  String?
+  countryCode  String?  // Country code for phone number (e.g., "IN", "US")
   cart         Cart?
   orders       Order[]
   reviews      Review[]
@@ -40,6 +41,7 @@ model Product {
   name        String
   description String?
   price       Decimal
+  crossedPrice Decimal?     // Original price before discount (optional)
   stock       Int
   images      Media[]       @relation("ProductImages")
   isAvailable Boolean       @default(true)

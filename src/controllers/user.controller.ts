@@ -102,6 +102,7 @@ export const otpVerification = async (req: Request, res: Response) => {
           state: true,
           country: true,
           phoneNumber: true,
+          countryCode: true,
           updatedAt: true,
         },
       });
@@ -146,6 +147,7 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
         state: true,
         country: true,
         phoneNumber: true,
+        countryCode: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -175,6 +177,7 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
       state,
       country,
       phoneNumber,
+      countryCode,
     } = req.body;
 
     // Validate required fields
@@ -208,8 +211,8 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
 
     if (!phoneNumber || phoneNumber.trim().length === 0) {
       validationErrors.push("Phone number is required");
-    } else if (!/^\d{10}$/.test(phoneNumber)) {
-      validationErrors.push("Phone number must be exactly 10 digits");
+    } else if (phoneNumber.length < 10) {
+      validationErrors.push("Please enter a valid phone number");
     }
 
     if (validationErrors.length > 0) {
@@ -230,6 +233,7 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
         state: state.trim(),
         country: country.trim(),
         phoneNumber: phoneNumber.trim(),
+        countryCode: countryCode?.trim() || null,
       },
       select: {
         id: true,
@@ -242,6 +246,7 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
         state: true,
         country: true,
         phoneNumber: true,
+        countryCode: true,
         updatedAt: true,
       },
     });
@@ -274,6 +279,7 @@ export const checkAddressComplete = async (req: AuthRequest, res: Response) => {
         zipCode: true,
         country: true,
         phoneNumber: true,
+        countryCode: true,
       },
     });
 
@@ -301,6 +307,7 @@ export const checkAddressComplete = async (req: AuthRequest, res: Response) => {
             zipCode: user.zipCode,
             country: user.country,
             phoneNumber: user.phoneNumber,
+            countryCode: user.countryCode,
           }
         : null,
     });
