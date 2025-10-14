@@ -181,8 +181,55 @@ export const getProducts = async (req: Request, res: Response) => {
 
     const totalPages = Math.ceil(totalCount / pageSize);
 
+    // Calculate review stats for each product
+    const productsWithStats = await Promise.all(
+      products.map(async (product) => {
+        // Get review statistics for this product
+        const ratingStats = await prisma.review.groupBy({
+          by: ["rating"],
+          where: { productId: product.id },
+          _count: {
+            rating: true,
+          },
+        });
+
+        const averageRating = await prisma.review.aggregate({
+          where: { productId: product.id },
+          _avg: {
+            rating: true,
+          },
+        });
+
+        const totalReviews = await prisma.review.count({
+          where: { productId: product.id },
+        });
+
+        const ratingDistribution = {
+          5: 0,
+          4: 0,
+          3: 0,
+          2: 0,
+          1: 0,
+        };
+
+        ratingStats.forEach((stat) => {
+          ratingDistribution[stat.rating as keyof typeof ratingDistribution] =
+            stat._count.rating;
+        });
+
+        return {
+          ...formatProduct(product),
+          reviewStats: {
+            averageRating: averageRating._avg.rating || 0,
+            totalReviews,
+            ratingDistribution,
+          },
+        };
+      })
+    );
+
     res.json({
-      data: products,
+      data: productsWithStats,
       pagination: {
         totalItems: totalCount,
         totalPages,
@@ -313,7 +360,7 @@ export const getTopPicksProducts = async (req: Request, res: Response) => {
         reviews.length > 0
           ? reviews.reduce((sum, review) => sum + review.rating, 0) /
             reviews.length
-          : 4.5; // Default rating
+          : 0; // Return 0 when no reviews instead of default 4.5
 
       return {
         id: product.id,
