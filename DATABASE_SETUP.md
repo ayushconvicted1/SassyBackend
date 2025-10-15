@@ -14,26 +14,53 @@ DATABASE_URL="postgresql://username:password@localhost:5432/sassyshringaar"
 
 # JWT Configuration
 JWT_SECRET="your-jwt-secret-key-here"
+OTP_SECRET="your-otp-secret-key-here"
 
-# Razorpay Configuration
+# Email Configuration (REQUIRED for OTP verification)
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT="587"
+SMTP_USER="your-email@gmail.com"
+SMTP_PASS="your-app-password"
+
+# Razorpay Configuration (Optional)
 RAZORPAY_KEY_ID="your-razorpay-key-id"
 RAZORPAY_KEY_SECRET="your-razorpay-key-secret"
 
-# AWS S3 Configuration
+# AWS S3 Configuration (Optional)
 AWS_ACCESS_KEY_ID="your-aws-access-key"
 AWS_SECRET_ACCESS_KEY="your-aws-secret-key"
 AWS_REGION="your-aws-region"
 AWS_S3_BUCKET="your-s3-bucket-name"
 
-# Email Configuration (for OTP)
-EMAIL_HOST="smtp.gmail.com"
-EMAIL_PORT=587
-EMAIL_USER="your-email@gmail.com"
-EMAIL_PASS="your-app-password"
-
 # Server Configuration
 PORT=3000
 NODE_ENV="development"
+```
+
+## Email Configuration Setup
+
+### Gmail Setup (Recommended)
+
+1. **Enable 2-Factor Authentication** on your Gmail account
+2. **Generate an App Password**:
+   - Go to Google Account settings
+   - Security → 2-Step Verification → App passwords
+   - Generate a password for "Mail"
+   - Use this password as `SMTP_PASS`
+
+### Other Email Providers
+
+- **Outlook/Hotmail**: Use `smtp-mail.outlook.com` with port `587`
+- **Yahoo**: Use `smtp.mail.yahoo.com` with port `587`
+- **Custom SMTP**: Configure according to your provider's settings
+
+### Environment Variables for Email
+
+```env
+SMTP_HOST="smtp.gmail.com"          # Your SMTP server
+SMTP_PORT="587"                      # Port (587 for TLS, 465 for SSL)
+SMTP_USER="your-email@gmail.com"    # Your email address
+SMTP_PASS="your-app-password"        # App password or regular password
 ```
 
 ## Database Setup Steps
@@ -59,6 +86,8 @@ NODE_ENV="development"
 - **Data Types**: Removed MySQL-specific data type annotations (`@db.VarChar`, `@db.UnsignedInt`, etc.)
 - **Dependencies**: Added `pg` and `@types/pg` packages
 - **Migration**: Created new PostgreSQL migration replacing the old MySQL one
+- **Email Verification**: Implemented proper OTP email sending with nodemailer
+- **Configuration Validation**: Added startup validation for all required environment variables
 
 ## PostgreSQL vs MySQL Differences
 
@@ -67,7 +96,34 @@ NODE_ENV="development"
 - **Enums**: Uses PostgreSQL ENUM types
 - **Constraints**: Uses PostgreSQL constraint syntax
 
+## Email Verification System
+
+The application now includes a robust email verification system:
+
+- **Random OTP Generation**: 4-digit random OTPs (no more hardcoded 1234)
+- **Email Templates**: Professional HTML email templates with branding
+- **Error Handling**: Graceful handling of email sending failures
+- **Configuration Validation**: Startup validation ensures all email settings are correct
+- **Security**: OTPs expire after 5 minutes and are cryptographically hashed
+
 ## Troubleshooting
+
+### Email Issues
+
+- **"Email service temporarily unavailable"**: Check your SMTP credentials
+- **"Missing required environment variables"**: Ensure all SMTP\_\* variables are set
+- **Authentication failed**: Verify your email and app password are correct
+
+### Database Issues
+
+- **Connection refused**: Ensure PostgreSQL is running and accessible
+- **Authentication failed**: Check your DATABASE_URL credentials
+- **Database doesn't exist**: Create the database before running migrations
+
+### General Issues
+
+- **Server won't start**: Check the console for configuration validation errors
+- **OTP not working**: Ensure OTP_SECRET is set and email service is configured
 
 If you encounter issues:
 

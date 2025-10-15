@@ -1,5 +1,15 @@
+import { validateEnvironmentConfig } from "@/utils/configValidation";
+
 const server = require("@/app");
 const PORT = process.env.PORT || 5000;
+
+// Validate environment configuration on startup
+try {
+  validateEnvironmentConfig();
+} catch (error) {
+  console.error("❌ Server startup failed due to configuration issues");
+  process.exit(1);
+}
 
 // Initialize status update service
 const initializeStatusService = async () => {
@@ -14,6 +24,7 @@ const initializeStatusService = async () => {
 
 server.listen(PORT, async () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log("📧 Email verification system is active");
 
   // Start the automated status update service
   await initializeStatusService();

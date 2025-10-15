@@ -15,16 +15,44 @@ export const register = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Email and name are required" });
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res
+        .status(400)
+        .json({ message: "Please enter a valid email address" });
+    }
+
     const existingUser = await prisma.user.findUnique({ where: { email } });
 
     if (existingUser) {
       return res.status(400).json({ message: "User already exists" });
     }
 
-    const hash = createNewOtp(email);
-    return res.status(200).json({ message: "OTP sent", hash, newUser: true });
+    const hash = await createNewOtp(email);
+    return res
+      .status(200)
+      .json({
+        message: "OTP sent successfully to your email",
+        hash,
+        newUser: true,
+      });
   } catch (err: any) {
     console.error("Register Error:", err);
+
+    // Handle specific email sending errors
+    if (
+      err.message.includes("Failed to send OTP") ||
+      err.message.includes("Missing required environment variables")
+    ) {
+      return res
+        .status(500)
+        .json({
+          error:
+            "Email service temporarily unavailable. Please try again later.",
+        });
+    }
+
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
@@ -37,16 +65,44 @@ export const login = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Email is required" });
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res
+        .status(400)
+        .json({ message: "Please enter a valid email address" });
+    }
+
     const existingUser = await prisma.user.findUnique({ where: { email } });
 
     if (!existingUser) {
       return res.status(400).json({ message: "User doesn't exist" });
     }
 
-    const hash = createNewOtp(email);
-    return res.status(200).json({ message: "OTP sent", hash, newUser: false });
+    const hash = await createNewOtp(email);
+    return res
+      .status(200)
+      .json({
+        message: "OTP sent successfully to your email",
+        hash,
+        newUser: false,
+      });
   } catch (err: any) {
     console.error("Login Error:", err);
+
+    // Handle specific email sending errors
+    if (
+      err.message.includes("Failed to send OTP") ||
+      err.message.includes("Missing required environment variables")
+    ) {
+      return res
+        .status(500)
+        .json({
+          error:
+            "Email service temporarily unavailable. Please try again later.",
+        });
+    }
+
     res.status(500).json({ error: "Internal Server Error" });
   }
 };

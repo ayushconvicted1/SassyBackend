@@ -8,7 +8,8 @@
     "build": "tsc && tsc-alias",
     "start": "node dist/index.js",
     "prisma": "prisma",
-    "prisma:seed": "prisma db seed"
+    "prisma:seed": "prisma db seed",
+    "test:email": "ts-node --require tsconfig-paths/register scripts/test-email.ts"
   },
   "prisma": {
     "seed": "ts-node --require tsconfig-paths/register prisma/seed.ts"
