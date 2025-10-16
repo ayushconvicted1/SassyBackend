@@ -36,8 +36,12 @@ const corsOptions: CorsOptions = {
 
 // This single line handles ALL requests, including preflight OPTIONS
 app.use(cors(corsOptions));
-app.use(express.json()); // Problematic global parser
-app.use(express.urlencoded({ extended: true }));
+
+// Increase body parser limits so large uploads or large form payloads don't trigger 413
+// Note: multipart/form-data uploads are handled by multer on specific routes, but
+// increasing these limits helps for any JSON/urlencoded endpoints and edge cases.
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(morgan("dev"));
 
 app.use("/api/users", userRoutes);

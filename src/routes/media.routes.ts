@@ -20,7 +20,11 @@ router.use(adminMiddleware);
 
 // Configure Multer storage (in memory, since we upload directly to S3)
 const storage = multer.memoryStorage();
-const upload = multer({ storage });
+// Limit individual file size to 5MB and total fields to reasonable size
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB per file
+});
 
 // POST /api/media/upload - Single image upload
 // Fields in body: type (string), userId (optional), productId (optional)

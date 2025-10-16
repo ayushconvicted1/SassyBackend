@@ -8,6 +8,10 @@ export const adminMiddleware = async (
   next: NextFunction
 ) => {
   try {
+    // Let preflight OPTIONS requests pass through so CORS can be handled upstream
+    if (req.method === "OPTIONS") {
+      return next();
+    }
     const token = req.header("Authorization")?.replace("Bearer ", "");
 
     if (!token) {
