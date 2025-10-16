@@ -1,7 +1,5 @@
 require("dotenv").config();
-import { CorsOptions } from "cors";
 import express from "express";
-const cors = require("cors");
 const morgan = require("morgan");
 
 const userRoutes = require("@/routes/user.routes");
@@ -15,27 +13,6 @@ const offerRoutes = require("./routes/offer.routes");
 const reviewRoutes = require("./routes/review.routes");
 
 const app = express();
-
-const allowedOrigins = [
-  "https://www.sassyshringaar.com",
-  "https://sassyshringaar.com",
-];
-
-const corsOptions: CorsOptions = {
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-  credentials: true,
-  methods: "GET,POST,PUT,DELETE,PATCH,HEAD",
-  allowedHeaders: "Content-Type,Authorization",
-};
-
-// This single line handles ALL requests, including preflight OPTIONS
-app.use(cors(corsOptions));
 
 // Increase body parser limits so large uploads or large form payloads don't trigger 413
 // Note: multipart/form-data uploads are handled by multer on specific routes, but
