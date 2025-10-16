@@ -36,7 +36,8 @@ const corsOptions: CorsOptions = {
 
 // This single line handles ALL requests, including preflight OPTIONS
 app.use(cors(corsOptions));
-app.use(express.json());
+app.use(express.json()); // Problematic global parser
+app.use(express.urlencoded({ extended: true }));
 app.use(morgan("dev"));
 
 app.use("/api/users", userRoutes);
