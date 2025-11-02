@@ -271,17 +271,56 @@ export const getAllOrders = async (req: Request, res: Response) => {
 
     const orders = await prisma.order.findMany({
       where: filters,
-      include: {
+      select: {
+        id: true,
+        status: true,
+        total: true,
+        subtotal: true,
+        shipping: true,
+        tax: true,
+        offerDiscount: true,
+        prepaidDiscount: true,
+        appliedDiscount: true,
+        paymentMethod: true,
+        razorpayOrderId: true,
+        paymentId: true,
+        waybillNumber: true,
+        zipCode: true,
+        addressLine1: true,
+        addressLine2: true,
+        city: true,
+        state: true,
+        country: true,
+        phoneNumber: true,
+        email: true,
+        createdAt: true,
+        updatedAt: true,
         items: {
-          include: {
+          select: {
+            id: true,
+            productId: true,
+            quantity: true,
+            price: true,
+            size: true,
             product: {
-              include: {
-                images: true,
+              select: {
+                name: true,
+                images: {
+                  select: {
+                    url: true,
+                  },
+                },
               },
             },
           },
         },
-        user: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
       },
       orderBy,
     });

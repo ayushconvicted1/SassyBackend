@@ -32,7 +32,8 @@
     "nodemailer": "^7.0.6",
     "pg": "^8.11.3",
     "razorpay": "^2.9.6",
-    "tsconfig-paths": "^4.2.0"
+    "tsconfig-paths": "^4.2.0",
+    "twilio": "^5.10.4"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

@@ -3,6 +3,11 @@ import prisma from "@/configs/db";
 import razorpay from "@/configs/razorpay";
 import crypto from "crypto";
 import fetch from "node-fetch";
+import {
+  sendOrderConfirmation,
+  sendOrderStatusUpdate,
+  sendShippingUpdate,
+} from "@/services/whatsapp.service";
 
 export const getOrders = async (req: Request, res: Response) => {
   try {
@@ -131,12 +136,12 @@ export const getOrders = async (req: Request, res: Response) => {
         order.status === "delivered"
           ? "Delivered"
           : order.status === "shipped"
-            ? "Shipped"
-            : order.status === "paid" || order.status === "confirmed"
-              ? "Processing"
-              : order.status === "cancelled"
-                ? "Cancelled"
-                : "Processing",
+          ? "Shipped"
+          : order.status === "paid" || order.status === "confirmed"
+          ? "Processing"
+          : order.status === "cancelled"
+          ? "Cancelled"
+          : "Processing",
       total: Number(order.total),
       paymentMethod: order.paymentMethod,
       waybillNumber: order.waybillNumber,
@@ -299,6 +304,19 @@ export const checkout = async (req: Request, res: Response) => {
         });
       }
 
+      // Send WhatsApp notification for COD order
+      try {
+        await sendOrderConfirmation(
+          address.phoneNumber,
+          order.id,
+          finalTotal,
+          "pending"
+        );
+      } catch (whatsappError) {
+        console.error("WhatsApp notification failed:", whatsappError);
+        // Don't block the order process if WhatsApp fails
+      }
+
       res.json({
         success: true,
         orderId: order.id,
@@ -396,14 +414,47 @@ export const verifyPayment = async (req: Request, res: Response) => {
         });
       }
 
-      // ✅ Update order as paid
-      const order = await prisma.order.update({
-        where: { id: numericOrderId },
-        data: {
-          status: "paid",
-          paymentId: razorpay_payment_id,
-        },
-        include: { items: true }, // optional: return items also
+      // ✅ Update order as paid and increment offer usage if applicable
+      const order = await prisma.$transaction(async (prisma) => {
+        const updatedOrder = await prisma.order.update({
+          where: { id: numericOrderId },
+          data: {
+            status: "paid",
+            paymentId: razorpay_payment_id,
+          },
+          include: { items: true },
+        });
+
+        // If order has offerDiscount, find and increment the offer usage
+        if (
+          updatedOrder.offerDiscount &&
+          Number(updatedOrder.offerDiscount) > 0
+        ) {
+          // Find offers that match the discount amount
+          const offers = await prisma.offer.findMany({
+            where: {
+              isActive: true,
+              discountType: {
+                in: ["PERCENTAGE", "FIXED_AMOUNT"],
+              },
+            },
+          });
+
+          for (const offer of offers) {
+            // Update the first matching offer's usage count
+            await prisma.offer.update({
+              where: { id: offer.id },
+              data: {
+                usageCount: {
+                  increment: 1,
+                },
+              },
+            });
+            break; // Update only one offer
+          }
+        }
+
+        return updatedOrder;
       });
 
       // await createShipment();
@@ -416,6 +467,79 @@ export const verifyPayment = async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error(err);
 
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const updateOrderStatus = async (req: Request, res: Response) => {
+  try {
+    const { orderId, status, waybillNumber = "" } = req.body;
+
+    // Convert orderId to number
+    const numericOrderId = parseInt(orderId, 10);
+    if (isNaN(numericOrderId) || numericOrderId <= 0) {
+      return res.status(400).json({ error: "Invalid order ID" });
+    }
+
+    // Validate status
+    const validStatuses = [
+      "pending",
+      "confirmed",
+      "shipped",
+      "delivered",
+      "cancelled",
+    ];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: "Invalid status" });
+    }
+
+    // Get the original order to access phone number
+    const originalOrder = await prisma.order.findUnique({
+      where: { id: numericOrderId },
+      select: { phoneNumber: true },
+    });
+
+    if (!originalOrder) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: numericOrderId },
+      data: {
+        status,
+        waybillNumber,
+      },
+    });
+
+    // Send WhatsApp notification based on status
+    try {
+      // Only send WhatsApp if we have a phone number
+      if (originalOrder.phoneNumber) {
+        if (status === "shipped" && waybillNumber) {
+          await sendShippingUpdate(
+            originalOrder.phoneNumber,
+            numericOrderId,
+            waybillNumber
+          );
+        } else {
+          await sendOrderStatusUpdate(
+            originalOrder.phoneNumber,
+            numericOrderId,
+            status
+          );
+        }
+      }
+    } catch (whatsappError) {
+      console.error("WhatsApp notification failed:", whatsappError);
+      // Don't block the status update if WhatsApp fails
+    }
+
+    res.json({
+      message: "Order status updated successfully",
+      order: updatedOrder,
+    });
+  } catch (err: any) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 };
