@@ -1,20 +1,50 @@
 import twilio from "twilio";
 
+// --- Configuration & Validation ---
+
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
-// Prefer a dedicated SMS-capable Twilio phone number. If not provided, try to
-// fall back to the configured WhatsApp number by stripping the "whatsapp:" prefix.
-const fromNumberFallback = process.env.TWILIO_WHATSAPP_NUMBER
-  ? process.env.TWILIO_WHATSAPP_NUMBER.replace(/^whatsapp:/, "")
-  : undefined;
-const fromNumber = process.env.TWILIO_PHONE_NUMBER || fromNumberFallback;
+
+// 1. Validate Core Credentials - This is the most likely source of your error.
+if (!accountSid) {
+  throw new Error("TWILIO_ACCOUNT_SID is not set in environment variables.");
+}
+if (!authToken) {
+  throw new Error("TWILIO_AUTH_TOKEN is not set in environment variables.");
+}
 
 const client = twilio(accountSid, authToken);
 
-function formatPhoneNumber(phoneNumber: string) {
-  // Ensure phone has a leading +, Twilio requires E.164 format for most regions
-  return phoneNumber.startsWith("+") ? phoneNumber : "+" + phoneNumber;
+// 2. Validate 'From' Number Configuration
+// Your original logic tries to send an SMS. Ensure you have an SMS-capable number.
+const smsFromNumber = process.env.TWILIO_PHONE_NUMBER;
+const whatsappFallback = process.env.TWILIO_WHATSAPP_NUMBER
+  ? process.env.TWILIO_WHATSAPP_NUMBER.replace(/^whatsapp:/, "")
+  : undefined;
+
+// Use the SMS number first, then the fallback.
+let fromNumber = smsFromNumber || whatsappFallback;
+
+if (!fromNumber) {
+  throw new Error(
+    "TWILIO_PHONE_NUMBER (or TWILIO_WHATSAPP_NUMBER as fallback) is not configured."
+  );
 }
+
+// 3. Ensure the 'from' number is in E.164 format (e.g., +1234567890)
+// This cleans and validates the number format once.
+const validatedFromNumber = `+${fromNumber.replace(/\D/g, "")}`;
+
+/**
+ * Formats a recipient phone number to E.164 format.
+ */
+function formatPhoneNumber(phoneNumber: string): string {
+  // Removes all non-digit characters and ensures a leading +
+  const digits = phoneNumber.replace(/\D/g, "");
+  return `+${digits}`;
+}
+
+// --- Service Functions ---
 
 export const sendOrderConfirmation = async (
   phoneNumber: string,
@@ -23,15 +53,11 @@ export const sendOrderConfirmation = async (
   status: string
 ) => {
   try {
-    if (!fromNumber) {
-      throw new Error("TWILIO_PHONE_NUMBER or TWILIO_WHATSAPP_NUMBER (fallback) is not configured");
-    }
-
     const formattedNumber = formatPhoneNumber(phoneNumber);
 
     const message = await client.messages.create({
       body: `Thank you for your order at Sassy Shringaar!\n\nOrder Details:\nOrder ID: #${orderId}\nTotal Amount: ₹${total}\nStatus: ${status}\n\nWe'll keep you updated on your order status.`,
-      from: fromNumber,
+      from: validatedFromNumber,
       to: formattedNumber,
     });
 
@@ -49,15 +75,11 @@ export const sendOrderStatusUpdate = async (
   newStatus: string
 ) => {
   try {
-    if (!fromNumber) {
-      throw new Error("TWILIO_PHONE_NUMBER or TWILIO_WHATSAPP_NUMBER (fallback) is not configured");
-    }
-
     const formattedNumber = formatPhoneNumber(phoneNumber);
 
     const message = await client.messages.create({
       body: `Order Status Update!\n\nYour order #${orderId} has been ${newStatus}.\n\nTrack your order on our website for more details.`,
-      from: fromNumber,
+      from: validatedFromNumber,
       to: formattedNumber,
     });
 
@@ -75,15 +97,11 @@ export const sendShippingUpdate = async (
   trackingNumber: string
 ) => {
   try {
-    if (!fromNumber) {
-      throw new Error("TWILIO_PHONE_NUMBER or TWILIO_WHATSAPP_NUMBER (fallback) is not configured");
-    }
-
     const formattedNumber = formatPhoneNumber(phoneNumber);
 
     const message = await client.messages.create({
       body: `Shipping Update!\n\nYour order #${orderId} has been shipped!\n\nTracking Number: ${trackingNumber}\n\nTrack your order on our website for more details.`,
-      from: fromNumber,
+      from: validatedFromNumber,
       to: formattedNumber,
     });
 
