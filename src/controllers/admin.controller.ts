@@ -227,16 +227,16 @@ export const deleteProduct = async (req: Request, res: Response) => {
 
     // Delete all images from S3
     if (productImages.length > 0) {
-      console.log(`Deleting ${productImages.length} images from S3 for product ${id}`);
-      const s3Urls = productImages.map((img) => img.url);
-      await Promise.all(
-        s3Urls.map((url) => deleteFromS3(url))
+      console.log(
+        `Deleting ${productImages.length} images from S3 for product ${id}`
       );
+      const s3Urls = productImages.map((img) => img.url);
+      await Promise.all(s3Urls.map((url) => deleteFromS3(url)));
     }
 
     // Delete from database (cascade should handle related records)
     await prisma.product.delete({ where: { id: Number(id) } });
-    
+
     return res.json({ message: "✅ Product deleted successfully" });
   } catch (err: any) {
     console.error("Error deleting product:", err);
@@ -912,7 +912,7 @@ export const deleteTag = async (req: Request, res: Response) => {
 export const getAllHomePageImages = async (req: Request, res: Response) => {
   try {
     const { type } = req.query;
-    
+
     const where: any = {};
     if (type) {
       where.type = type;
@@ -920,10 +920,7 @@ export const getAllHomePageImages = async (req: Request, res: Response) => {
 
     const images = await prisma.homePageImage.findMany({
       where,
-      orderBy: [
-        { type: "asc" },
-        { order: "asc" },
-      ],
+      orderBy: [{ type: "asc" }, { order: "asc" }],
     });
 
     res.json(images);
@@ -951,9 +948,7 @@ export const upsertHomePageImage = async (req: Request, res: Response) => {
     } = req.body;
 
     if (!type || !imageUrl) {
-      return res
-        .status(400)
-        .json({ error: "Type and imageUrl are required" });
+      return res.status(400).json({ error: "Type and imageUrl are required" });
     }
 
     // Validate type enum
@@ -981,47 +976,51 @@ export const upsertHomePageImage = async (req: Request, res: Response) => {
     };
 
     let image;
-        if (id && Number(id) > 0) {
-          // Check if image exists before updating
-          const existing = await prisma.homePageImage.findUnique({
-            where: { id: Number(id) },
-          });
-          
-          if (existing) {
-            // Check if image URLs have changed - delete old ones from S3
-            const urlsToDelete: string[] = [];
-            if (existing.imageUrl && existing.imageUrl !== imageUrl) {
-              urlsToDelete.push(existing.imageUrl);
-            }
-            if (existing.mobileImageUrl && existing.mobileImageUrl !== mobileImageUrl) {
-              urlsToDelete.push(existing.mobileImageUrl);
-            }
+    if (id && Number(id) > 0) {
+      // Check if image exists before updating
+      const existing = await prisma.homePageImage.findUnique({
+        where: { id: Number(id) },
+      });
 
-            // Delete old images from S3 if URLs changed
-            if (urlsToDelete.length > 0) {
-              console.log(`Deleting old images from S3 for image ${id}:`, urlsToDelete);
-              await Promise.all(
-                urlsToDelete.map((url) => deleteFromS3(url))
-              );
-            }
-
-            // Update existing image
-            image = await prisma.homePageImage.update({
-              where: { id: Number(id) },
-              data: data,
-            });
-          } else {
-            // Image doesn't exist, create new one
-            image = await prisma.homePageImage.create({
-              data: data,
-            });
-          }
-        } else {
-          // Create new image
-          image = await prisma.homePageImage.create({
-            data: data,
-          });
+      if (existing) {
+        // Check if image URLs have changed - delete old ones from S3
+        const urlsToDelete: string[] = [];
+        if (existing.imageUrl && existing.imageUrl !== imageUrl) {
+          urlsToDelete.push(existing.imageUrl);
         }
+        if (
+          existing.mobileImageUrl &&
+          existing.mobileImageUrl !== mobileImageUrl
+        ) {
+          urlsToDelete.push(existing.mobileImageUrl);
+        }
+
+        // Delete old images from S3 if URLs changed
+        if (urlsToDelete.length > 0) {
+          console.log(
+            `Deleting old images from S3 for image ${id}:`,
+            urlsToDelete
+          );
+          await Promise.all(urlsToDelete.map((url) => deleteFromS3(url)));
+        }
+
+        // Update existing image
+        image = await prisma.homePageImage.update({
+          where: { id: Number(id) },
+          data: data,
+        });
+      } else {
+        // Image doesn't exist, create new one
+        image = await prisma.homePageImage.create({
+          data: data,
+        });
+      }
+    } else {
+      // Create new image
+      image = await prisma.homePageImage.create({
+        data: data,
+      });
+    }
 
     res.json({ message: "✅ Home page image upserted successfully", image });
   } catch (err: any) {
@@ -1041,7 +1040,19 @@ export const bulkUpdateHomePageImages = async (req: Request, res: Response) => {
 
     const results = await Promise.all(
       images.map(async (img: any) => {
-        const { id, type, imageUrl, mobileImageUrl, altText, title, subtitle, color, href, order, isActive } = img;
+        const {
+          id,
+          type,
+          imageUrl,
+          mobileImageUrl,
+          altText,
+          title,
+          subtitle,
+          color,
+          href,
+          order,
+          isActive,
+        } = img;
 
         if (!type || !imageUrl) {
           throw new Error(`Image missing required fields: type and imageUrl`);
@@ -1065,23 +1076,27 @@ export const bulkUpdateHomePageImages = async (req: Request, res: Response) => {
           const existing = await prisma.homePageImage.findUnique({
             where: { id: Number(id) },
           });
-          
+
           if (existing) {
             // Check if image URLs have changed - delete old ones from S3
             const urlsToDelete: string[] = [];
             if (existing.imageUrl && existing.imageUrl !== imageUrl) {
               urlsToDelete.push(existing.imageUrl);
             }
-            if (existing.mobileImageUrl && existing.mobileImageUrl !== mobileImageUrl) {
+            if (
+              existing.mobileImageUrl &&
+              existing.mobileImageUrl !== mobileImageUrl
+            ) {
               urlsToDelete.push(existing.mobileImageUrl);
             }
 
             // Delete old images from S3 if URLs changed
             if (urlsToDelete.length > 0) {
-              console.log(`Deleting old images from S3 for image ${id}:`, urlsToDelete);
-              await Promise.all(
-                urlsToDelete.map((url) => deleteFromS3(url))
+              console.log(
+                `Deleting old images from S3 for image ${id}:`,
+                urlsToDelete
               );
+              await Promise.all(urlsToDelete.map((url) => deleteFromS3(url)));
             }
 
             // Update existing image
@@ -1104,9 +1119,9 @@ export const bulkUpdateHomePageImages = async (req: Request, res: Response) => {
       })
     );
 
-    res.json({ 
+    res.json({
       message: `✅ ${results.length} images updated successfully`,
-      images: results 
+      images: results,
     });
   } catch (err: any) {
     console.log(err);
@@ -1143,9 +1158,7 @@ export const deleteHomePageImage = async (req: Request, res: Response) => {
     // Delete from S3 (don't fail if S3 deletion fails)
     if (s3UrlsToDelete.length > 0) {
       console.log("Deleting images from S3:", s3UrlsToDelete);
-      await Promise.all(
-        s3UrlsToDelete.map((url) => deleteFromS3(url))
-      );
+      await Promise.all(s3UrlsToDelete.map((url) => deleteFromS3(url)));
     }
 
     // Delete from database
@@ -1185,8 +1198,8 @@ export const uploadHomePageImage = async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error("Upload error:", err);
-    res.status(500).json({ 
-      error: err.message || "Failed to upload image"
+    res.status(500).json({
+      error: err.message || "Failed to upload image",
     });
   }
 };

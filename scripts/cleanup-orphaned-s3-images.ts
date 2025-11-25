@@ -1,15 +1,15 @@
 /**
  * Cleanup script to find and delete orphaned images from S3
- * 
+ *
  * This script:
  * 1. Fetches all images from the database (Media and HomePageImage)
  * 2. Lists all objects in S3 bucket
  * 3. Finds objects in S3 that are not referenced in the database
  * 4. Optionally deletes the orphaned objects
- * 
+ *
  * Usage:
  *   ts-node scripts/cleanup-orphaned-s3-images.ts [--dry-run] [--delete]
- * 
+ *
  *   --dry-run: Only list orphaned images without deleting (default)
  *   --delete: Actually delete the orphaned images
  */
@@ -119,7 +119,11 @@ async function deleteOrphanedImages(orphaned: OrphanedImage[]): Promise<void> {
     return;
   }
 
-  console.log(`\n${DRY_RUN ? "🔍 DRY RUN" : "🗑️  DELETING"} ${orphaned.length} orphaned images...`);
+  console.log(
+    `\n${DRY_RUN ? "🔍 DRY RUN" : "🗑️  DELETING"} ${
+      orphaned.length
+    } orphaned images...`
+  );
 
   let deleted = 0;
   let failed = 0;
@@ -182,5 +186,3 @@ async function main() {
 
 // Run the script
 main();
-
-

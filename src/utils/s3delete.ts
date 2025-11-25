@@ -56,14 +56,10 @@ export const deleteFromS3 = async (s3Url: string): Promise<boolean> => {
 export const deleteMultipleFromS3 = async (
   s3Urls: string[]
 ): Promise<{ success: number; failed: number }> => {
-  const results = await Promise.all(
-    s3Urls.map((url) => deleteFromS3(url))
-  );
+  const results = await Promise.all(s3Urls.map((url) => deleteFromS3(url)));
 
   const success = results.filter((r) => r === true).length;
   const failed = results.filter((r) => r === false).length;
 
   return { success, failed };
 };
-
-

@@ -257,9 +257,6 @@ export const getTopPicksProducts = async (req: Request, res: Response) => {
       take: 4,
       include: {
         product: {
-          where: {
-            isAvailable: true,
-          },
           include: {
             images: {
               select: { url: true },
@@ -286,8 +283,11 @@ export const getTopPicksProducts = async (req: Request, res: Response) => {
 
     // Filter out products that are not available
     const availableTopPicks = topPickProducts
-      .filter((tp) => tp.product && tp.product.isAvailable)
-      .map((tp) => tp.product!);
+      .filter(
+        (tp: { product: { isAvailable: boolean } | null }) =>
+          tp.product && tp.product.isAvailable
+      )
+      .map((tp: { product: any }) => tp.product);
 
     // If we need more products, get top selling products based on analytics
     let additionalProducts: any[] = [];
@@ -414,8 +414,10 @@ export const getTopPicksProducts = async (req: Request, res: Response) => {
       const reviews = product.reviews || [];
       const averageRating =
         reviews.length > 0
-          ? reviews.reduce((sum, review) => sum + review.rating, 0) /
-            reviews.length
+          ? reviews.reduce(
+              (sum: number, review: { rating: number }) => sum + review.rating,
+              0
+            ) / reviews.length
           : 0; // Return 0 when no reviews instead of default 4.5
 
       return {
@@ -432,8 +434,10 @@ export const getTopPicksProducts = async (req: Request, res: Response) => {
         hasSizing: product.hasSizing,
         category: product.category?.name || "Uncategorized",
         categoryId: product.categoryId,
-        images: product.images.map((img) => img.url),
-        tags: product.tags.map((tag) => tag.tag.name),
+        images: product.images.map((img: { url: string }) => img.url),
+        tags: product.tags.map(
+          (tag: { tag: { name: string } }) => tag.tag.name
+        ),
         createdAt: product.createdAt,
         updatedAt: product.updatedAt,
         reviewStats: {
