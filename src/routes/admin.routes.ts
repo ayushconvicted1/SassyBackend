@@ -23,6 +23,9 @@ import {
   deleteHomePageImage,
   uploadHomePageImage,
   bulkUpdateHomePageImages,
+  getTopPickProducts,
+  setTopPickProducts,
+  removeTopPickProduct,
 } from "@/controllers/admin.controller";
 import {
   getAllOffers,
@@ -99,5 +102,10 @@ router.post("/home-image", upsertHomePageImage);
 router.put("/home-image/:id", upsertHomePageImage);
 router.post("/home-images/bulk-update", bulkUpdateHomePageImages);
 router.delete("/home-image/:id", deleteHomePageImage);
+
+// Top Pick Products
+router.get("/top-picks", getTopPickProducts);
+router.post("/top-picks", setTopPickProducts);
+router.delete("/top-pick/:id", removeTopPickProduct);
 
 module.exports = router;

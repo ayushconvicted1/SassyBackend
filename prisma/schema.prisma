@@ -55,6 +55,7 @@ model Product {
   updatedAt   DateTime      @updatedAt
   sizes       ProductSize[]
   tags        ProductTag[]
+  topPicks    TopPickProduct[]
 
   @@index([categoryId])
   @@index([sku])
@@ -239,4 +240,15 @@ model Review {
   @@index([productId])
   @@index([userId])
   @@index([rating])
+}
+
+model TopPickProduct {
+  id        Int      @id @default(autoincrement())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId Int      @unique // Only one top pick entry per product
+  order     Int      @default(0) // Display order (0-3 for 4 products)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([order])
 }

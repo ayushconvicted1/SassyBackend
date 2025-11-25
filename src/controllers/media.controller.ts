@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import prisma from "@/configs/db";
 import { uploadToS3 } from "@/utils/s3upload";
+import { deleteFromS3 } from "@/utils/s3delete";
 
 // Upload single image (can be used for product or user avatar)
 export const uploadImage = async (req: Request, res: Response) => {
@@ -105,13 +106,29 @@ export const deleteImage = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Image ID is required" });
     }
 
+    // Fetch the image first to get S3 URL
+    const image = await prisma.media.findUnique({
+      where: { id: Number(id) },
+    });
+
+    if (!image) {
+      return res.status(404).json({ error: "Image not found" });
+    }
+
+    // Delete from S3 (don't fail if S3 deletion fails)
+    if (image.url) {
+      console.log("Deleting image from S3:", image.url);
+      await deleteFromS3(image.url);
+    }
+
+    // Delete from database
     await prisma.media.delete({
       where: { id: Number(id) },
     });
 
     res.json({ message: "Image deleted successfully" });
   } catch (err: any) {
-    console.log(err);
+    console.error("Error deleting image:", err);
     res.status(500).json({ error: err.message });
   }
 };

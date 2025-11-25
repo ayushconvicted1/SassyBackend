@@ -245,113 +245,169 @@ export const getProducts = async (req: Request, res: Response) => {
   }
 };
 
-// Get top picks products based on analytics
+// Get top picks products - prioritize manually selected, then analytics
 export const getTopPicksProducts = async (req: Request, res: Response) => {
   try {
     const { limit = 16 } = req.query;
+    const limitNum = parseInt(limit as string);
 
-    // Get top selling products based on analytics (last 30 days)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    // Get products with their sales data
-    const topSellingProducts = await prisma.orderItem.groupBy({
-      by: ["productId"],
-      where: {
-        order: {
-          createdAt: {
-            gte: thirtyDaysAgo,
-          },
-          status: {
-            not: "cancelled",
-          },
-        },
-      },
-      _sum: {
-        quantity: true,
-      },
-      _avg: {
-        price: true,
-      },
-      orderBy: {
-        _sum: {
-          quantity: "desc",
-        },
-      },
-      take: parseInt(limit as string),
-    });
-
-    // Get product details for top selling products
-    const productIds = topSellingProducts.map((item) => item.productId);
-    const products = await prisma.product.findMany({
-      where: {
-        id: {
-          in: productIds,
-        },
-        isAvailable: true,
-      },
+    // First, get manually selected top pick products (max 4)
+    const topPickProducts = await prisma.topPickProduct.findMany({
+      orderBy: { order: "asc" },
+      take: 4,
       include: {
-        images: {
-          select: { url: true },
-        },
-        category: {
-          select: { name: true },
-        },
-        tags: {
+        product: {
+          where: {
+            isAvailable: true,
+          },
           include: {
-            tag: {
+            images: {
+              select: { url: true },
+            },
+            category: {
               select: { name: true },
             },
-          },
-        },
-        reviews: {
-          select: {
-            rating: true,
-          },
-        },
-      },
-    });
-
-    // If we don't have enough top selling products, fill with newest products
-    if (products.length < parseInt(limit as string)) {
-      const remainingCount = parseInt(limit as string) - products.length;
-      const existingIds = products.map((p) => p.id);
-
-      const additionalProducts = await prisma.product.findMany({
-        where: {
-          isAvailable: true,
-          id: {
-            notIn: existingIds,
-          },
-        },
-        include: {
-          images: {
-            select: { url: true },
-          },
-          category: {
-            select: { name: true },
-          },
-          tags: {
-            include: {
-              tag: {
-                select: { name: true },
+            tags: {
+              include: {
+                tag: {
+                  select: { name: true },
+                },
+              },
+            },
+            reviews: {
+              select: {
+                rating: true,
               },
             },
           },
-          reviews: {
-            select: {
-              rating: true,
+        },
+      },
+    });
+
+    // Filter out products that are not available
+    const availableTopPicks = topPickProducts
+      .filter((tp) => tp.product && tp.product.isAvailable)
+      .map((tp) => tp.product!);
+
+    // If we need more products, get top selling products based on analytics
+    let additionalProducts: any[] = [];
+    if (availableTopPicks.length < limitNum) {
+      const remainingCount = limitNum - availableTopPicks.length;
+      const existingIds = availableTopPicks.map((p) => p.id);
+
+      // Get top selling products based on analytics (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const topSellingProducts = await prisma.orderItem.groupBy({
+        by: ["productId"],
+        where: {
+          productId: {
+            notIn: existingIds,
+          },
+          order: {
+            createdAt: {
+              gte: thirtyDaysAgo,
+            },
+            status: {
+              not: "cancelled",
             },
           },
         },
+        _sum: {
+          quantity: true,
+        },
         orderBy: {
-          createdAt: "desc",
+          _sum: {
+            quantity: "desc",
+          },
         },
         take: remainingCount,
       });
 
-      products.push(...additionalProducts);
+      const productIds = topSellingProducts.map((item) => item.productId);
+      if (productIds.length > 0) {
+        additionalProducts = await prisma.product.findMany({
+          where: {
+            id: {
+              in: productIds,
+            },
+            isAvailable: true,
+          },
+          include: {
+            images: {
+              select: { url: true },
+            },
+            category: {
+              select: { name: true },
+            },
+            tags: {
+              include: {
+                tag: {
+                  select: { name: true },
+                },
+              },
+            },
+            reviews: {
+              select: {
+                rating: true,
+              },
+            },
+          },
+        });
+      }
+
+      // If still not enough, fill with newest products
+      if (availableTopPicks.length + additionalProducts.length < limitNum) {
+        const finalRemainingCount =
+          limitNum - availableTopPicks.length - additionalProducts.length;
+        const allExistingIds = [
+          ...existingIds,
+          ...additionalProducts.map((p) => p.id),
+        ];
+
+        const newestProducts = await prisma.product.findMany({
+          where: {
+            isAvailable: true,
+            id: {
+              notIn: allExistingIds,
+            },
+          },
+          include: {
+            images: {
+              select: { url: true },
+            },
+            category: {
+              select: { name: true },
+            },
+            tags: {
+              include: {
+                tag: {
+                  select: { name: true },
+                },
+              },
+            },
+            reviews: {
+              select: {
+                rating: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: finalRemainingCount,
+        });
+
+        additionalProducts.push(...newestProducts);
+      }
     }
+
+    // Combine manually selected top picks with additional products
+    const products = [...availableTopPicks, ...additionalProducts].slice(
+      0,
+      limitNum
+    );
 
     // Format products with review stats
     const productsWithStats = products.map((product) => {

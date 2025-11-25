@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import prisma from "@/configs/db";
 import { uploadToS3Compressed } from "@/utils/s3uploadCompressed";
+import { deleteFromS3 } from "@/utils/s3delete";
 
 // Get dashboard statistics
 export const getDashboardStats = async (req: Request, res: Response) => {
@@ -206,9 +207,39 @@ export const deleteProduct = async (req: Request, res: Response) => {
     if (!id) {
       return res.status(400).json({ error: "Product ID is required" });
     }
+
+    // Fetch product with images first
+    const product = await prisma.product.findUnique({
+      where: { id: Number(id) },
+      include: {
+        images: true, // Assuming there's a relation to Media
+      },
+    });
+
+    if (!product) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    // Get all media associated with this product
+    const productImages = await prisma.media.findMany({
+      where: { productId: Number(id) },
+    });
+
+    // Delete all images from S3
+    if (productImages.length > 0) {
+      console.log(`Deleting ${productImages.length} images from S3 for product ${id}`);
+      const s3Urls = productImages.map((img) => img.url);
+      await Promise.all(
+        s3Urls.map((url) => deleteFromS3(url))
+      );
+    }
+
+    // Delete from database (cascade should handle related records)
     await prisma.product.delete({ where: { id: Number(id) } });
+    
     return res.json({ message: "✅ Product deleted successfully" });
   } catch (err: any) {
+    console.error("Error deleting product:", err);
     return res.status(500).json({ error: err.message });
   }
 };
@@ -950,30 +981,47 @@ export const upsertHomePageImage = async (req: Request, res: Response) => {
     };
 
     let image;
-    if (id && Number(id) > 0) {
-      // Check if image exists before updating
-      const existing = await prisma.homePageImage.findUnique({
-        where: { id: Number(id) },
-      });
-      
-      if (existing) {
-        // Update existing image
-        image = await prisma.homePageImage.update({
-          where: { id: Number(id) },
-          data: data,
-        });
-      } else {
-        // Image doesn't exist, create new one
-        image = await prisma.homePageImage.create({
-          data: data,
-        });
-      }
-    } else {
-      // Create new image
-      image = await prisma.homePageImage.create({
-        data: data,
-      });
-    }
+        if (id && Number(id) > 0) {
+          // Check if image exists before updating
+          const existing = await prisma.homePageImage.findUnique({
+            where: { id: Number(id) },
+          });
+          
+          if (existing) {
+            // Check if image URLs have changed - delete old ones from S3
+            const urlsToDelete: string[] = [];
+            if (existing.imageUrl && existing.imageUrl !== imageUrl) {
+              urlsToDelete.push(existing.imageUrl);
+            }
+            if (existing.mobileImageUrl && existing.mobileImageUrl !== mobileImageUrl) {
+              urlsToDelete.push(existing.mobileImageUrl);
+            }
+
+            // Delete old images from S3 if URLs changed
+            if (urlsToDelete.length > 0) {
+              console.log(`Deleting old images from S3 for image ${id}:`, urlsToDelete);
+              await Promise.all(
+                urlsToDelete.map((url) => deleteFromS3(url))
+              );
+            }
+
+            // Update existing image
+            image = await prisma.homePageImage.update({
+              where: { id: Number(id) },
+              data: data,
+            });
+          } else {
+            // Image doesn't exist, create new one
+            image = await prisma.homePageImage.create({
+              data: data,
+            });
+          }
+        } else {
+          // Create new image
+          image = await prisma.homePageImage.create({
+            data: data,
+          });
+        }
 
     res.json({ message: "✅ Home page image upserted successfully", image });
   } catch (err: any) {
@@ -1019,6 +1067,23 @@ export const bulkUpdateHomePageImages = async (req: Request, res: Response) => {
           });
           
           if (existing) {
+            // Check if image URLs have changed - delete old ones from S3
+            const urlsToDelete: string[] = [];
+            if (existing.imageUrl && existing.imageUrl !== imageUrl) {
+              urlsToDelete.push(existing.imageUrl);
+            }
+            if (existing.mobileImageUrl && existing.mobileImageUrl !== mobileImageUrl) {
+              urlsToDelete.push(existing.mobileImageUrl);
+            }
+
+            // Delete old images from S3 if URLs changed
+            if (urlsToDelete.length > 0) {
+              console.log(`Deleting old images from S3 for image ${id}:`, urlsToDelete);
+              await Promise.all(
+                urlsToDelete.map((url) => deleteFromS3(url))
+              );
+            }
+
             // Update existing image
             return await prisma.homePageImage.update({
               where: { id: Number(id) },
@@ -1057,12 +1122,38 @@ export const deleteHomePageImage = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Image ID is required" });
     }
 
-    // Delete from database (S3 files can be cleaned up separately if needed)
+    // Fetch the image first to get S3 URLs
+    const image = await prisma.homePageImage.findUnique({
+      where: { id: Number(id) },
+    });
+
+    if (!image) {
+      return res.status(404).json({ error: "Image not found" });
+    }
+
+    // Delete from S3
+    const s3UrlsToDelete: string[] = [];
+    if (image.imageUrl) {
+      s3UrlsToDelete.push(image.imageUrl);
+    }
+    if (image.mobileImageUrl) {
+      s3UrlsToDelete.push(image.mobileImageUrl);
+    }
+
+    // Delete from S3 (don't fail if S3 deletion fails)
+    if (s3UrlsToDelete.length > 0) {
+      console.log("Deleting images from S3:", s3UrlsToDelete);
+      await Promise.all(
+        s3UrlsToDelete.map((url) => deleteFromS3(url))
+      );
+    }
+
+    // Delete from database
     await prisma.homePageImage.delete({ where: { id: Number(id) } });
 
     res.json({ message: "✅ Home page image deleted successfully" });
   } catch (err: any) {
-    console.log(err);
+    console.error("Error deleting home page image:", err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -1097,5 +1188,115 @@ export const uploadHomePageImage = async (req: Request, res: Response) => {
     res.status(500).json({ 
       error: err.message || "Failed to upload image"
     });
+  }
+};
+
+// ==================== TOP PICK PRODUCTS MANAGEMENT ====================
+
+// Get all top pick products
+export const getTopPickProducts = async (req: Request, res: Response) => {
+  try {
+    const topPicks = await prisma.topPickProduct.findMany({
+      orderBy: { order: "asc" },
+      include: {
+        product: {
+          include: {
+            images: {
+              select: { url: true },
+            },
+            category: {
+              select: { name: true },
+            },
+          },
+        },
+      },
+    });
+
+    res.json(topPicks);
+  } catch (err: any) {
+    console.error("Error fetching top pick products:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Set top pick products (replaces all existing top picks)
+export const setTopPickProducts = async (req: Request, res: Response) => {
+  try {
+    const { productIds } = req.body; // Array of product IDs [1, 2, 3, 4]
+
+    if (!Array.isArray(productIds)) {
+      return res.status(400).json({ error: "productIds must be an array" });
+    }
+
+    if (productIds.length > 4) {
+      return res
+        .status(400)
+        .json({ error: "Maximum 4 products can be selected as top picks" });
+    }
+
+    // Validate that all products exist and are available
+    const products = await prisma.product.findMany({
+      where: {
+        id: { in: productIds },
+        isAvailable: true,
+      },
+    });
+
+    if (products.length !== productIds.length) {
+      return res
+        .status(400)
+        .json({ error: "Some products not found or not available" });
+    }
+
+    // Delete all existing top picks
+    await prisma.topPickProduct.deleteMany({});
+
+    // Create new top picks with order
+    const topPicks = await Promise.all(
+      productIds.map((productId: number, index: number) =>
+        prisma.topPickProduct.create({
+          data: {
+            productId: Number(productId),
+            order: index,
+          },
+          include: {
+            product: {
+              include: {
+                images: {
+                  select: { url: true },
+                },
+                category: {
+                  select: { name: true },
+                },
+              },
+            },
+          },
+        })
+      )
+    );
+
+    res.json({
+      message: "✅ Top pick products updated successfully",
+      topPicks,
+    });
+  } catch (err: any) {
+    console.error("Error setting top pick products:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Remove a product from top picks
+export const removeTopPickProduct = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    await prisma.topPickProduct.delete({
+      where: { id: Number(id) },
+    });
+
+    res.json({ message: "✅ Product removed from top picks successfully" });
+  } catch (err: any) {
+    console.error("Error removing top pick product:", err);
+    res.status(500).json({ error: err.message });
   }
 };
