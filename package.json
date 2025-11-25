@@ -4,17 +4,17 @@
   "description": "Jewellery E-Commerce",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "NODE_OPTIONS='--max-old-space-size=4096' nodemon --watch src --ext ts --exec \"ts-node --require tsconfig-paths/register src/index.ts\"",
-    "build": "NODE_OPTIONS='--max-old-space-size=4096' tsc && tsc-alias",
-    "start": "NODE_OPTIONS='--max-old-space-size=4096' node dist/index.js",
-    "prisma": "NODE_OPTIONS='--max-old-space-size=4096' prisma",
-    "prisma:seed": "NODE_OPTIONS='--max-old-space-size=4096' prisma db seed",
-    "test:email": "NODE_OPTIONS='--max-old-space-size=4096' ts-node --require tsconfig-paths/register scripts/test-email.ts",
-    "cleanup:s3": "NODE_OPTIONS='--max-old-space-size=4096' ts-node --require tsconfig-paths/register scripts/cleanup-orphaned-s3-images.ts",
-    "cleanup:s3:delete": "NODE_OPTIONS='--max-old-space-size=4096' ts-node --require tsconfig-paths/register scripts/cleanup-orphaned-s3-images.ts --delete"
+    "dev": "nodemon --watch src --ext ts --exec \"ts-node --require tsconfig-paths/register src/index.ts\"",
+    "build": "tsc && tsc-alias",
+    "start": "node dist/index.js",
+    "prisma": "prisma",
+    "prisma:seed": "prisma db seed",
+    "test:email": "ts-node --require tsconfig-paths/register scripts/test-email.ts",
+    "cleanup:s3": "ts-node --require tsconfig-paths/register scripts/cleanup-orphaned-s3-images.ts",
+    "cleanup:s3:delete": "ts-node --require tsconfig-paths/register scripts/cleanup-orphaned-s3-images.ts --delete"
   },
   "prisma": {
-    "seed": "NODE_OPTIONS='--max-old-space-size=4096' ts-node --require tsconfig-paths/register prisma/seed.ts"
+    "seed": "ts-node --require tsconfig-paths/register prisma/seed.ts"
   },
   "author": "Akash",
   "license": "ISC",

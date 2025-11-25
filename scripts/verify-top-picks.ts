@@ -2,9 +2,11 @@
  * Verification script to check if TopPickProduct table is properly set up
  */
 
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient() as PrismaClient & {
+  topPickProduct: Prisma.TopPickProductDelegate<Prisma.PrismaClientOptions, {}>;
+};
 
 async function verifyTopPicks() {
   try {
