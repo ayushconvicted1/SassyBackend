@@ -15,8 +15,10 @@
     "forceConsistentCasingInFileNames": true,
     "typeRoots": ["./types", "./node_modules/@types"],
     "incremental": true,
-    "tsBuildInfoFile": "./dist/.tsbuildinfo"
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    "isolatedModules": true,
+    "noEmitOnError": false
   },
   "include": ["src", "scripts"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts", "prisma"]
 }
