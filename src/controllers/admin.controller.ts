@@ -950,12 +950,24 @@ export const upsertHomePageImage = async (req: Request, res: Response) => {
     };
 
     let image;
-    if (id) {
-      // Update existing image
-      image = await prisma.homePageImage.update({
+    if (id && Number(id) > 0) {
+      // Check if image exists before updating
+      const existing = await prisma.homePageImage.findUnique({
         where: { id: Number(id) },
-        data: data,
       });
+      
+      if (existing) {
+        // Update existing image
+        image = await prisma.homePageImage.update({
+          where: { id: Number(id) },
+          data: data,
+        });
+      } else {
+        // Image doesn't exist, create new one
+        image = await prisma.homePageImage.create({
+          data: data,
+        });
+      }
     } else {
       // Create new image
       image = await prisma.homePageImage.create({
@@ -1000,12 +1012,24 @@ export const bulkUpdateHomePageImages = async (req: Request, res: Response) => {
           isActive: isActive !== undefined ? Boolean(isActive) : true,
         };
 
-        if (id) {
-          // Update existing image
-          return await prisma.homePageImage.update({
+        if (id && Number(id) > 0) {
+          // Check if image exists before updating
+          const existing = await prisma.homePageImage.findUnique({
             where: { id: Number(id) },
-            data: data,
           });
+          
+          if (existing) {
+            // Update existing image
+            return await prisma.homePageImage.update({
+              where: { id: Number(id) },
+              data: data,
+            });
+          } else {
+            // Image doesn't exist, create new one
+            return await prisma.homePageImage.create({
+              data: data,
+            });
+          }
         } else {
           // Create new image
           return await prisma.homePageImage.create({
