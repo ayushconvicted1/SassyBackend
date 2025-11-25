@@ -293,7 +293,7 @@ export const getTopPicksProducts = async (req: Request, res: Response) => {
     let additionalProducts: any[] = [];
     if (availableTopPicks.length < limitNum) {
       const remainingCount = limitNum - availableTopPicks.length;
-      const existingIds = availableTopPicks.map((p) => p.id);
+      const existingIds = availableTopPicks.map((p: { id: number }) => p.id);
 
       // Get top selling products based on analytics (last 30 days)
       const thirtyDaysAgo = new Date();
