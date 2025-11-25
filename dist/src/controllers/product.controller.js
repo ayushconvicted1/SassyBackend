@@ -227,10 +227,9 @@ const getTopPicksProducts = async (req, res) => {
     try {
         const { limit = 16 } = req.query;
         const limitNum = parseInt(limit);
-        // First, get manually selected top pick products (max 4)
+        // First, get manually selected top pick products
         const topPickProducts = await db_1.default.topPickProduct.findMany({
             orderBy: { order: "asc" },
-            take: 4,
             include: {
                 product: {
                     include: {
