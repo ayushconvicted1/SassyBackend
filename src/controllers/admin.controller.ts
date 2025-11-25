@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import prisma from "@/configs/db";
+import { uploadToPublic, deleteFromPublic } from "@/utils/publicUpload";
 
 // Get dashboard statistics
 export const getDashboardStats = async (req: Request, res: Response) => {
@@ -873,5 +874,182 @@ export const deleteTag = async (req: Request, res: Response) => {
   } catch (err: any) {
     console.log(err);
     res.status(500).json({ error: err.message });
+  }
+};
+
+// Get all home page images (optionally filtered by type)
+export const getAllHomePageImages = async (req: Request, res: Response) => {
+  try {
+    const { type } = req.query;
+    
+    const where: any = {};
+    if (type) {
+      where.type = type;
+    }
+
+    const images = await prisma.homePageImage.findMany({
+      where,
+      orderBy: [
+        { type: "asc" },
+        { order: "asc" },
+      ],
+    });
+
+    res.json(images);
+  } catch (err: any) {
+    console.log(err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Create or update home page image
+export const upsertHomePageImage = async (req: Request, res: Response) => {
+  try {
+    const {
+      id,
+      type,
+      imageUrl,
+      mobileImageUrl,
+      altText,
+      title,
+      subtitle,
+      color,
+      href,
+      order,
+      isActive,
+    } = req.body;
+
+    if (!type || !imageUrl) {
+      return res
+        .status(400)
+        .json({ error: "Type and imageUrl are required" });
+    }
+
+    // Validate type enum
+    const validTypes = [
+      "HERO_CAROUSEL",
+      "POWER_FEATURES",
+      "POWERPLAY_CAROUSEL",
+      "CATEGORY",
+    ];
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({ error: "Invalid image type" });
+    }
+
+    const data: any = {
+      type,
+      imageUrl,
+      mobileImageUrl: mobileImageUrl || null,
+      altText: altText || null,
+      title: title || null,
+      subtitle: subtitle || null,
+      color: color || null,
+      href: href || null,
+      order: order !== undefined ? Number(order) : 0,
+      isActive: isActive !== undefined ? Boolean(isActive) : true,
+    };
+
+    const image = await prisma.homePageImage.upsert({
+      where: { id: id ? Number(id) : 0 },
+      update: data,
+      create: data,
+    });
+
+    res.json({ message: "✅ Home page image upserted successfully", image });
+  } catch (err: any) {
+    console.log(err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Delete home page image
+export const deleteHomePageImage = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ error: "Image ID is required" });
+    }
+
+    // Get image before deleting to remove file from public folder
+    const image = await prisma.homePageImage.findUnique({
+      where: { id: Number(id) },
+    });
+
+    if (image) {
+      // Delete files from public folder first
+      if (image.imageUrl && image.imageUrl.startsWith("/")) {
+        try {
+          await deleteFromPublic(image.imageUrl);
+        } catch (err) {
+          console.error("Error deleting desktop image:", err);
+        }
+      }
+      if (
+        image.mobileImageUrl &&
+        image.mobileImageUrl.startsWith("/")
+      ) {
+        try {
+          await deleteFromPublic(image.mobileImageUrl);
+        } catch (err) {
+          console.error("Error deleting mobile image:", err);
+        }
+      }
+
+      // Delete from database
+      await prisma.homePageImage.delete({ where: { id: Number(id) } });
+    }
+
+    res.json({ message: "✅ Home page image deleted successfully" });
+  } catch (err: any) {
+    console.log(err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Upload home page image to public folder
+export const uploadHomePageImage = async (req: Request, res: Response) => {
+  try {
+    console.log("Upload request received");
+    console.log("Request body:", req.body);
+    console.log("Request file:", req.file ? {
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+    } : "No file");
+
+    const file = req.file as Express.Multer.File;
+    const { type } = req.body; // "desktop" or "mobile"
+
+    if (!file) {
+      console.error("No file in request");
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    // Validate file type
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.mimetype)) {
+      console.error("Invalid file type:", file.mimetype);
+      return res.status(400).json({
+        error: "Invalid file type. Only JPEG, PNG, and WebP are allowed.",
+      });
+    }
+
+    console.log("Uploading to public folder...");
+    // Upload to public folder
+    const subfolder = "home-images";
+    const publicUrl = await uploadToPublic(file, subfolder);
+    console.log("Upload successful, URL:", publicUrl);
+
+    res.json({
+      message: "Image uploaded successfully",
+      url: publicUrl,
+    });
+  } catch (err: any) {
+    console.error("Upload error:", err);
+    console.error("Error stack:", err.stack);
+    res.status(500).json({ 
+      error: err.message || "Failed to upload image",
+      details: process.env.NODE_ENV === "development" ? err.stack : undefined
+    });
   }
 };

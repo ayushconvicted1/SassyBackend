@@ -18,6 +18,10 @@ import {
   getAllTags,
   upsertTag,
   deleteTag,
+  getAllHomePageImages,
+  upsertHomePageImage,
+  deleteHomePageImage,
+  uploadHomePageImage,
 } from "@/controllers/admin.controller";
 import {
   getAllOffers,
@@ -29,8 +33,16 @@ import {
 } from "@/controllers/offer.controller";
 import { adminMiddleware } from "@/middlewares/admin.middleware";
 import express from "express";
+import multer from "multer";
 
 const router = express.Router();
+
+// Configure Multer for home page image uploads (in memory storage)
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB per file
+});
 
 // Apply admin middleware to all routes
 router.use(adminMiddleware);
@@ -78,5 +90,12 @@ router.put("/offer/:id", updateOffer);
 router.delete("/offer/:id", deleteOffer);
 router.get("/offer/:id", getOfferById);
 router.get("/tags-categories", getTagsAndCategories);
+
+// Home Page Images
+router.get("/home-images", getAllHomePageImages);
+router.post("/home-image/upload", upload.single("file"), uploadHomePageImage);
+router.post("/home-image", upsertHomePageImage);
+router.put("/home-image/:id", upsertHomePageImage);
+router.delete("/home-image/:id", deleteHomePageImage);
 
 module.exports = router;

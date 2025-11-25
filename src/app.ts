@@ -11,6 +11,7 @@ const adminRoutes = require("@/routes/admin.routes");
 const analyticsRoutes = require("@/routes/analytics.routes");
 const offerRoutes = require("./routes/offer.routes");
 const reviewRoutes = require("./routes/review.routes");
+import homeRoutes from "./routes/home.routes";
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/media", mediaRoutes);
 app.use("/api/offers", offerRoutes);
 app.use("/api/reviews", reviewRoutes);
+app.use("/api/home", homeRoutes);
 
 app.use("/api/admin", adminRoutes);
 app.use("/api/admin/analytics", analyticsRoutes);

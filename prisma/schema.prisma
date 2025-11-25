@@ -195,6 +195,32 @@ enum DiscountType {
   BOGO // Buy One Get One Free
 }
 
+enum HomePageImageType {
+  HERO_CAROUSEL
+  POWER_FEATURES
+  POWERPLAY_CAROUSEL
+  CATEGORY
+}
+
+model HomePageImage {
+  id          Int               @id @default(autoincrement())
+  type        HomePageImageType
+  imageUrl    String            // Desktop image URL (or single image for categories)
+  mobileImageUrl String?        // Mobile image URL (optional, for responsive images)
+  altText     String?           // Alt text for accessibility
+  title       String?           // Title/name (e.g., category name, slide title)
+  subtitle    String?           // Subtitle (e.g., category subtitle)
+  color       String?           // Color code (e.g., for categories)
+  href        String?           // Link URL (e.g., for categories)
+  order       Int               @default(0) // Order/position for carousel items
+  isActive    Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([type])
+  @@index([type, order])
+}
+
 model Review {
   id        Int      @id @default(autoincrement())
   rating    Int      // 1-5 stars
