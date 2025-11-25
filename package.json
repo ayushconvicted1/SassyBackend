@@ -5,8 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "nodemon --watch src --ext ts --exec \"ts-node --require tsconfig-paths/register src/index.ts\"",
-    "build": "node --max-old-space-size=512 ./node_modules/typescript/bin/tsc",
-    "build:full": "npm run build && node --max-old-space-size=256 ./node_modules/tsc-alias/dist/bin/index.js",
+    "build": "rm -rf dist/.tsbuildinfo && node --max-old-space-size=512 ./node_modules/typescript/bin/tsc && tsc-alias",
     "build:clean": "rm -rf dist && npm run build",
     "start": "node dist/index.js",
     "prisma": "prisma",
