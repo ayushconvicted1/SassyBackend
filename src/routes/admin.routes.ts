@@ -22,6 +22,7 @@ import {
   upsertHomePageImage,
   deleteHomePageImage,
   uploadHomePageImage,
+  bulkUpdateHomePageImages,
 } from "@/controllers/admin.controller";
 import {
   getAllOffers,
@@ -96,6 +97,7 @@ router.get("/home-images", getAllHomePageImages);
 router.post("/home-image/upload", upload.single("file"), uploadHomePageImage);
 router.post("/home-image", upsertHomePageImage);
 router.put("/home-image/:id", upsertHomePageImage);
+router.post("/home-images/bulk-update", bulkUpdateHomePageImages);
 router.delete("/home-image/:id", deleteHomePageImage);
 
 module.exports = router;
