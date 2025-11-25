@@ -1235,16 +1235,16 @@ export const getTopPickProducts = async (req: Request, res: Response) => {
 // Set top pick products (replaces all existing top picks)
 export const setTopPickProducts = async (req: Request, res: Response) => {
   try {
-    const { productIds } = req.body; // Array of product IDs
+    const { productIds } = req.body; // Array of product IDs [1, 2, 3, 4]
 
     if (!Array.isArray(productIds)) {
       return res.status(400).json({ error: "productIds must be an array" });
     }
 
-    if (productIds.length === 0) {
+    if (productIds.length > 4) {
       return res
         .status(400)
-        .json({ error: "At least one product must be selected" });
+        .json({ error: "Maximum 4 products can be selected as top picks" });
     }
 
     // Validate that all products exist and are available
