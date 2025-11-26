@@ -251,9 +251,10 @@ export const getTopPicksProducts = async (req: Request, res: Response) => {
     const { limit = 16 } = req.query;
     const limitNum = parseInt(limit as string);
 
-    // First, get manually selected top pick products
+    // First, get manually selected top pick products (max 4)
     const topPickProducts = await prisma.topPickProduct.findMany({
       orderBy: { order: "asc" },
+      take: 4,
       include: {
         product: {
           include: {

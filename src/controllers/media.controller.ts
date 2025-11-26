@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import prisma from "@/configs/db";
 import { uploadToS3 } from "@/utils/s3upload";
+import { uploadToS3Compressed } from "@/utils/s3uploadCompressed";
 import { deleteFromS3 } from "@/utils/s3delete";
 
 // Upload single image (can be used for product or user avatar)
@@ -11,8 +12,10 @@ export const uploadImage = async (req: Request, res: Response) => {
 
     if (!file) return res.status(400).json({ error: "No file uploaded" });
 
-    // Upload to S3
-    const url = await uploadToS3(file);
+    // Upload to S3 with compression for product images
+    const url = type === "product" 
+      ? await uploadToS3Compressed(file, "products")
+      : await uploadToS3(file);
 
     const image = await prisma.media.create({
       data: {
@@ -68,12 +71,16 @@ export const uploadMultipleImages = async (req: Request, res: Response) => {
     const uploadPromises = filesToProcess.map(async (file, index) => {
       try {
         console.log(`Uploading file ${index + 1}:`, file.originalname);
-        const url = await uploadToS3(file);
+        // Use compressed upload for product images to save space
+        const imageType = type || "product";
+        const url = imageType === "product"
+          ? await uploadToS3Compressed(file, "products")
+          : await uploadToS3(file);
         return prisma.media.create({
           data: {
             url,
             mimeType: file.mimetype,
-            type: type || "product",
+            type: imageType,
             productId: productId ? Number(productId) : undefined,
           },
         });

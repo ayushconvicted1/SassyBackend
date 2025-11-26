@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getProductImages = exports.deleteImage = exports.uploadMultipleImages = exports.uploadImage = void 0;
 const db_1 = __importDefault(require("../configs/db"));
 const s3upload_1 = require("../utils/s3upload");
+const s3uploadCompressed_1 = require("../utils/s3uploadCompressed");
 const s3delete_1 = require("../utils/s3delete");
 // Upload single image (can be used for product or user avatar)
 const uploadImage = async (req, res) => {
@@ -14,8 +15,10 @@ const uploadImage = async (req, res) => {
         const { type, userId, productId } = req.body;
         if (!file)
             return res.status(400).json({ error: "No file uploaded" });
-        // Upload to S3
-        const url = await (0, s3upload_1.uploadToS3)(file);
+        // Upload to S3 with compression for product images
+        const url = type === "product"
+            ? await (0, s3uploadCompressed_1.uploadToS3Compressed)(file, "products")
+            : await (0, s3upload_1.uploadToS3)(file);
         const image = await db_1.default.media.create({
             data: {
                 url,
@@ -62,12 +65,16 @@ const uploadMultipleImages = async (req, res) => {
         const uploadPromises = filesToProcess.map(async (file, index) => {
             try {
                 console.log(`Uploading file ${index + 1}:`, file.originalname);
-                const url = await (0, s3upload_1.uploadToS3)(file);
+                // Use compressed upload for product images to save space
+                const imageType = type || "product";
+                const url = imageType === "product"
+                    ? await (0, s3uploadCompressed_1.uploadToS3Compressed)(file, "products")
+                    : await (0, s3upload_1.uploadToS3)(file);
                 return db_1.default.media.create({
                     data: {
                         url,
                         mimeType: file.mimetype,
-                        type: type || "product",
+                        type: imageType,
                         productId: productId ? Number(productId) : undefined,
                     },
                 });
